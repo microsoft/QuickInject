@@ -1,0 +1,74 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="12.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
+  <PropertyGroup>
+    <MinimumVisualStudioVersion>11.0</MinimumVisualStudioVersion>
+    <Configuration Condition=" '$(Configuration)' == '' ">Release</Configuration>
+    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
+    <ProjectGuid>{9179ED00-A38F-43BA-B270-EB62A92E475E}</ProjectGuid>
+    <OutputType>Library</OutputType>
+    <AppDesignerFolder>Properties</AppDesignerFolder>
+    <RootNamespace>QuickInject</RootNamespace>
+    <AssemblyName>QuickInject</AssemblyName>
+    <TargetFrameworkVersion>v4.5</TargetFrameworkVersion>
+    <TargetFrameworkProfile>Profile7</TargetFrameworkProfile>
+    <DefaultLanguage>en-US</DefaultLanguage>
+    <FileAlignment>512</FileAlignment>
+    <ProjectTypeGuids>{786C830F-07A1-408B-BD7F-6EE04809D6DB};{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}</ProjectTypeGuids>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
+    <DebugType>pdbonly</DebugType>
+    <Optimize>true</Optimize>
+    <OutputPath>bin\Release\</OutputPath>
+    <DefineConstants>TRACE</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
+    <DebugSymbols>true</DebugSymbols>
+    <DebugType>full</DebugType>
+    <Optimize>false</Optimize>
+    <OutputPath>bin\Debug\</OutputPath>
+    <DefineConstants>DEBUG;TRACE</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="CyclicDependencyException.cs" />
+    <Compile Include="QuickInjectContainer.cs" />
+    <Compile Include="QuickInjectEventSource.cs" />
+    <Compile Include="BuildPlan.cs" />
+    <Compile Include="ExpressionGenerator.cs" />
+    <Compile Include="ExtensionImpl.cs" />
+    <Compile Include="DummyBuilderContext.cs" />
+    <Compile Include="DummyPolicyList.cs" />
+    <Compile Include="Extensions.cs" />
+    <Compile Include="IQuickInjectContainer.cs" />
+    <Compile Include="IBuildPlanVisitor.cs" />
+    <Compile Include="InjectionFactory.cs" />
+    <Compile Include="InjectionFactoryMethodCallExpression.cs" />
+    <Compile Include="ITreeNode.cs" />
+    <Compile Include="ParameterizedInjectionFactory.cs" />
+    <Compile Include="ParameterizedInjectionFactoryBase.cs" />
+    <Compile Include="ParameterizedInjectionFactoryMethodCallExpression.cs" />
+    <Compile Include="ParameterizedLambdaExpressionInjectionFactory.cs" />
+    <Compile Include="ParameterizedLambdaExpressionInjectionFactoryBase.cs" />
+    <Compile Include="ParameterizedLambdaExpressionInjectionFactoryMethodCallExpression.cs" />
+    <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="ServiceProviderInjectionFactory.cs" />
+    <Compile Include="ServiceProviderInjectionFactoryBase.cs" />
+    <Compile Include="TreeNode.cs" />
+    <Compile Include="TypeRegistration.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="LICENSE" />
+    <None Include="packages.config" />
+    <None Include="README.md" />
+  </ItemGroup>
+  <ItemGroup>
+    <Reference Include="Microsoft.Practices.Unity">
+      <HintPath>packages\Unity.3.5.1404.0\lib\portable-net45+wp80+win8+MonoAndroid10+MonoTouch10\Microsoft.Practices.Unity.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+  <Import Project="$(MSBuildExtensionsPath32)\Microsoft\Portable\$(TargetFrameworkVersion)\Microsoft.Portable.CSharp.targets" />
+</Project>
