@@ -38,6 +38,8 @@ Unique QuickInject Features
 Inspection Engine a.k.a IBuildPlanVisitor
 -----------------------------------------
 
+NOTE: QuickInject's Expression Tree Structures are essentially code as data as APIs, i.e. they are not going to change, and are fixed. All future improvements will use the IBuildPlanVisitor API
+
 One of the most unique features of QuickInject is its **IBuildPlanVisitor**. Before every new resolution that QuickInject has not generated a build plan for, it calls a user-provided method that can visit the entire Expression Tree about to be compiled.
 
 ```cs
