@@ -378,11 +378,11 @@
         }
 
         [MethodImpl(MethodImplOptions.NoInlining)]
-        private Func<object> CompilePlan(Type t, Dictionary<Type, BuildPlan> planTable, bool slowPath, bool dedupe = true)
+        private Func<object> CompilePlan(Type t, Dictionary<Type, BuildPlan> planTable, bool slowPath)
         {
             var depTree = t.BuildDependencyTree(this.Dependencies);
             var topologicalOrdering = depTree.Sort(node => node.Children).Select(x => x.Value);
-            IEnumerable<Type> types = dedupe ? topologicalOrdering.Distinct() : topologicalOrdering;
+            IEnumerable<Type> types = topologicalOrdering;
 
             var typeRegistrations = new List<TypeRegistration>();
             foreach (var type in types)

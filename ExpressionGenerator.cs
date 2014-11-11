@@ -55,21 +55,14 @@
                 var fetchExpression = Expression.Block(coreFetchExpression, this.GenerateSetValueCall(variable, registration), variable);
                 var equalsExpression = Expression.Equal(Expression.Assign(variable, Expression.TypeAs(lifetimeLookupCall, registration.RegistrationType)), Expression.Constant(null));
 
-                if (lifetimeType == typeof(TransientLifetimeManager))
+                // last expression is special
+                if (this.registrations.Count - 1 == i)
                 {
-                    body.Add(coreFetchExpression);
+                    body.Add(fetchExpression);
+                    return Expression.Block(this.parameterExpressions, Expression.Condition(equalsExpression, Expression.Block(body), variable));
                 }
-                else
-                {
-                    // last expression is special
-                    if (this.registrations.Count - 1 == i)
-                    {
-                        body.Add(fetchExpression);
-                        return Expression.Block(this.parameterExpressions, Expression.Condition(equalsExpression, Expression.Block(body), variable));
-                    }
 
-                    body.Add(Expression.Condition(equalsExpression, fetchExpression, variable));
-                }
+                body.Add(Expression.Condition(equalsExpression, fetchExpression, variable));
             }
 
             return Expression.Block(this.parameterExpressions, body);
@@ -119,7 +112,7 @@
                 return Expression.Assign(variable, Expression.New(constructor));
             }
 
-            return Expression.Assign(variable, Expression.New(constructor, ctorParams.Select(ctorParam => this.parameterExpressionsByType[ctorParam.ParameterType].Peek())));
+            return Expression.Assign(variable, Expression.New(constructor, ctorParams.Select(ctorParam => this.parameterExpressionsByType[ctorParam.ParameterType].Pop())));
         }
 
         private Expression GenerateFactoryExpression(ParameterExpression variable, TypeRegistration registration)
