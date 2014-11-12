@@ -74,6 +74,93 @@ This powerful feature allows the developer complete control over what the genera
 * De-duplicating dependencies (e.g. IFoo depends on IBar and IBaz, and IBar depends on IBaz, you can potentially remove code associated with IBaz the second time)
 * Making certain lifetime managers more efficient: for example if the ThreadSpecificLifetimeManager calls into TLS for every lifetime check, you could hoist that outside so that all your thread lookups after the first are free.
 
+Expression Trees Structure Example
+----------------------------------
+
+```cs
+.Block(
+    ConsoleApplication15.A $var1,
+    ConsoleApplication15.A $var2,
+    ConsoleApplication15.B $var3,
+    ConsoleApplication15.D $var4,
+    ConsoleApplication15.Foo $var5) {
+    .If (
+        ($var5 = .Call .Constant<Microsoft.Practices.Unity.TransientLifetimeManager>(Microsoft.Practices.Unity.TransientLifetimeManager).GetValue()
+        .As ConsoleApplication15.Foo) == null
+    ) {
+        .Block() {
+            .If (
+                ($var1 = .Call .Constant<Microsoft.Practices.Unity.TransientLifetimeManager>(Microsoft.Practices.Unity.TransientLifetimeManager).GetValue()
+                .As ConsoleApplication15.A) == null
+            ) {
+                .Block() {
+                    $var1 = .New ConsoleApplication15.A();
+                    .Call .Constant<Microsoft.Practices.Unity.TransientLifetimeManager>(Microsoft.Practices.Unity.TransientLifetimeManager).SetValue($var1)
+                    ;
+                    $var1
+                }
+            } .Else {
+                $var1
+            };
+            .If (
+                ($var2 = .Call .Constant<Microsoft.Practices.Unity.TransientLifetimeManager>(Microsoft.Practices.Unity.TransientLifetimeManager).GetValue()
+                .As ConsoleApplication15.A) == null
+            ) {
+                .Block() {
+                    $var2 = .New ConsoleApplication15.A();
+                    .Call .Constant<Microsoft.Practices.Unity.TransientLifetimeManager>(Microsoft.Practices.Unity.TransientLifetimeManager).SetValue($var2)
+                    ;
+                    $var2
+                }
+            } .Else {
+                $var2
+            };
+            .If (
+                ($var3 = .Call .Constant<Microsoft.Practices.Unity.TransientLifetimeManager>(Microsoft.Practices.Unity.TransientLifetimeManager).GetValue()
+                .As ConsoleApplication15.B) == null
+            ) {
+                .Block() {
+                    $var3 = .New ConsoleApplication15.B(
+                        $var2,
+                        $var1);
+                    .Call .Constant<Microsoft.Practices.Unity.TransientLifetimeManager>(Microsoft.Practices.Unity.TransientLifetimeManager).SetValue($var3)
+                    ;
+                    $var3
+                }
+            } .Else {
+                $var3
+            };
+            .If (
+                ($var4 = .Call .Constant<Microsoft.Practices.Unity.TransientLifetimeManager>(Microsoft.Practices.Unity.TransientLifetimeManager).GetValue()
+                .As ConsoleApplication15.D) == null
+            ) {
+                .Block() {
+                    $var4 = .Call .Constant<Microsoft.Practices.Unity.InjectionFactory+<>c__DisplayClass2>(Microsoft.Practices.Unity.InjectionFactory+<>c__DisplayClass2).<.ctor>b__0(
+                        .Constant<QuickInject.QuickInjectContainer>(QuickInject.QuickInjectContainer),
+                        .Constant<System.RuntimeType>(ConsoleApplication15.D),
+                        "") .As ConsoleApplication15.D;
+                    .Call .Constant<Microsoft.Practices.Unity.TransientLifetimeManager>(Microsoft.Practices.Unity.TransientLifetimeManager).SetValue($var4)
+                    ;
+                    $var4
+                }
+            } .Else {
+                $var4
+            };
+            .Block() {
+                $var5 = .New ConsoleApplication15.Foo(
+                    $var3,
+                    $var4);
+                .Call .Constant<Microsoft.Practices.Unity.TransientLifetimeManager>(Microsoft.Practices.Unity.TransientLifetimeManager).SetValue($var5)
+                ;
+                $var5
+            }
+        }
+    } .Else {
+        $var5
+    }
+}
+```
+
 ParameterizedLambdaExpressionInjectionFactory&lt;T&gt;
 ------------------------------------------------------
 
