@@ -77,6 +77,65 @@ This powerful feature allows the developer complete control over what the genera
 Expression Trees Structure Example
 ----------------------------------
 
+For the following code:
+
+```cs
+namespace ConsoleApplication15
+{
+    public class A
+    {
+        public A()
+        {
+
+        }
+    }
+
+    public class B
+    {
+        public B(A a, A b)
+        {
+
+        }
+    }
+
+    public class Foo
+    {
+        public Foo(B b, D c)
+        {
+
+        }
+    }
+
+    public class C
+    {
+        public C()
+        {
+
+        }
+    }
+
+    public class D : C
+    {
+        public D()
+        {
+
+        }
+    }
+
+    class Program
+    {
+        static void Main(string[] args)
+        {
+            var container = new QuickInjectContainer();
+            container.RegisterType<D>(new Microsoft.Practices.Unity.InjectionFactory(x => x.Resolve<C>()));
+            container.Resolve<Foo>();
+        }
+    }
+}
+```
+
+QuickInject generates the following Expression Tree when no additional build plan visitor is in place.
+
 ```cs
 .Block(
     ConsoleApplication15.A $var1,
