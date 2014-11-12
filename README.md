@@ -284,9 +284,7 @@ And it would be registered like this:
 container.RegisterType<Foo>(new ParameterizedInjectionFactory<IA, IB, IC, Foo>(MyFactory));
 ```
 
-
-This helps if you have a lot of the This helps if you have a lot of the same *IA*, *IB*, *IC* repeated in different factories, and without this it would lead to new resolutions entering the lookup code path, with this it can be minimized.
-same *IA*, *IB*, *IC* repeated in different factories, and without this it would lead to new resolutions entering the lookup code path, with this it can be minimized.
+This helps if you have a lot of the same *IA*, *IB*, *IC* repeated in different factories, and without this it would lead to new resolutions entering the lookup code path, with this it can be minimized.
 
 RegisterDependencyTreeListener
 ------------------------------
