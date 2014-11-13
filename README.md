@@ -301,3 +301,128 @@ You can register your listener method and generate visual representation of your
 var container = new QuickInjectContainer();
 container.RegisterDependencyTreeListener( ... your method ... );
 ```
+
+Very Simple Performance Test Code and Results on an Intel iCore 7
+-----------------------------------------------------------------
+
+Unity
+
+        Resolving ConsoleApplication4.A from UnityContainer, took: 199ms
+        Resolving ConsoleApplication4.B from UnityContainer, took: 574ms
+
+Plain QuickInject
+
+        Resolving ConsoleApplication4.A from QuickInjectContainer, took: 18ms
+        Resolving ConsoleApplication4.B from QuickInjectContainer, took: 25ms
+
+QuickInject with Transient Lifetime Checks Removed
+
+        Resolving ConsoleApplication4.A from QuickInjectContainer, took: 16ms
+        Resolving ConsoleApplication4.B from QuickInjectContainer, took: 21ms
+
+QuickInject with Deduping
+
+        Resolving ConsoleApplication4.A from QuickInjectContainer, took: 17ms
+        Resolving ConsoleApplication4.B from QuickInjectContainer, took: 21ms
+
+QuickInject with Transient Lifetime Checks Removed & Deduping
+
+        Resolving ConsoleApplication4.A from QuickInjectContainer, took: 16ms
+        Resolving ConsoleApplication4.B from QuickInjectContainer, took: 18ms
+
+You can make a Visual Studio C# project, Install-Package QuickInject, and paste the following code in to verify this.
+
+```cs
+namespace QuickInjectPerformanceTest
+{
+    using System;
+    using System.Diagnostics;
+    using Microsoft.Practices.Unity;
+    using QuickInject;
+    using QuickInject.BuildPlanVisitors;
+
+    class B
+    {
+        public B(A a, A a1)
+        {
+            
+        }
+    }
+
+    class A
+    {
+        
+    }
+
+    internal static class Extensions
+    {
+        public static void ResolveTest<T>(this IUnityContainer container)
+        {
+            var retType = container.Resolve<T>();
+            var sw = new Stopwatch();
+            sw.Start();
+            for (int i = 0; i < 100000; ++i)
+            {
+                container.Resolve<T>();
+            }
+            sw.Stop();
+
+            Console.WriteLine("\tResolving " + retType.GetType() + " from " + container.GetType().Name + ", took: " + sw.ElapsedMilliseconds + "ms");
+        }
+    }
+
+    internal sealed class Program
+    {
+        public static void Main(string[] args)
+        {
+            var container = new UnityContainer();
+
+            var quickinject = new QuickInjectContainer();
+
+            var quickInjectWithTransientLifeTimeChecksRemove = new QuickInjectContainer();
+            quickInjectWithTransientLifeTimeChecksRemove.AddBuildPlanVisitor(new TransientLifetimeRemovalBuildPlanVisitor());
+
+            var quickInjectwithDedupingOn = new QuickInjectContainer();
+            quickInjectwithDedupingOn.AddBuildPlanVisitor(new TypeDeduplicationBuildPlanVisitor());
+
+            var quickInjectWithBothOn = new QuickInjectContainer();
+            quickInjectWithBothOn.AddBuildPlanVisitor(new TypeDeduplicationBuildPlanVisitor());
+            quickInjectWithBothOn.AddBuildPlanVisitor(new TransientLifetimeRemovalBuildPlanVisitor());
+
+            Console.WriteLine();
+            Console.WriteLine("Unity");
+            Console.WriteLine();
+
+            container.ResolveTest<A>();
+            container.ResolveTest<B>();
+
+            Console.WriteLine();
+            Console.WriteLine("Plain QuickInject");
+            Console.WriteLine();
+
+            quickinject.ResolveTest<A>();
+            quickinject.ResolveTest<B>();
+
+            Console.WriteLine();
+            Console.WriteLine("QuickInject with Transient Lifetime Checks Removed");
+            Console.WriteLine();
+
+            quickInjectWithTransientLifeTimeChecksRemove.ResolveTest<A>();
+            quickInjectWithTransientLifeTimeChecksRemove.ResolveTest<B>();
+
+            Console.WriteLine();
+            Console.WriteLine("QuickInject with Deduping");
+            Console.WriteLine();
+
+            quickInjectwithDedupingOn.ResolveTest<A>();
+            quickInjectwithDedupingOn.ResolveTest<B>();
+
+            Console.WriteLine();
+            Console.WriteLine("QuickInject with Transient Lifetime Checks Removed & Deduping");
+            Console.WriteLine();
+
+            quickInjectWithBothOn.ResolveTest<A>();
+            quickInjectWithBothOn.ResolveTest<B>();
+        }
+    }
+}
