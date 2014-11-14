@@ -426,3 +426,98 @@ namespace QuickInjectPerformanceTest
         }
     }
 }
+```
+
+Generated Code Examples
+-----------------------
+
+# No optimizing visitors
+
+```cs
+static ConsoleApplication15.Foo Create_ConsoleApplication15.Foo()
+{
+    ConsoleApplication15.A var0;
+    System.Func`1[ConsoleApplication15.A] var1;
+    ConsoleApplication15.B var2;
+    ConsoleApplication15.D var3;
+    ConsoleApplication15.Foo var4;
+    
+    if (var4 = (Microsoft.Practices.Unity.TransientLifetimeManager.GetValue() as ConsoleApplication15.Foo) == null)
+    {
+        {
+            if (var0 = (Microsoft.Practices.Unity.TransientLifetimeManager.GetValue() as ConsoleApplication15.A) == null)
+            {
+                {
+                    var0 = new ConsoleApplication15.A();                    
+                    Microsoft.Practices.Unity.TransientLifetimeManager.SetValue(var0);                    
+                }
+            }            
+            if (var1 = (Microsoft.Practices.Unity.TransientLifetimeManager.GetValue() as System.Func`1[ConsoleApplication15.A]) == null)
+            {
+                {
+                    var1 = () => (ConsoleApplication15.A)(Microsoft.Practices.Unity.IUnityContainer.Resolve(.Constant<System.RuntimeType>, .Constant<System.String>, .Constant<Microsoft.Practices.Unity.ResolverOverride[]>));                    
+                    Microsoft.Practices.Unity.TransientLifetimeManager.SetValue(var1);                    
+                }
+            }            
+            if (var2 = (Microsoft.Practices.Unity.TransientLifetimeManager.GetValue() as ConsoleApplication15.B) == null)
+            {
+                {
+                    var2 = new ConsoleApplication15.B(var0, var1);                    
+                    Microsoft.Practices.Unity.TransientLifetimeManager.SetValue(var2);                    
+                }
+            }            
+            if (var3 = (Microsoft.Practices.Unity.TransientLifetimeManager.GetValue() as ConsoleApplication15.D) == null)
+            {
+                {
+                    var3 = (Microsoft.Practices.Unity.InjectionFactory+<>c__DisplayClass2.<.ctor>b__0(.Constant<QuickInject.QuickInjectContainer>, .Constant<System.RuntimeType>, .Constant<System.String>) as ConsoleApplication15.D);                    
+                    Microsoft.Practices.Unity.TransientLifetimeManager.SetValue(var3);                    
+                }
+            }            
+            {
+                var4 = new ConsoleApplication15.Foo(var2, var3);                
+                Microsoft.Practices.Unity.TransientLifetimeManager.SetValue(var4);                
+            }
+            
+        }
+    }    
+    return var4;
+}
+```cs
+
+# With Transient lifetime Removal optimizer
+
+```cs
+static ConsoleApplication15.Foo Create_ConsoleApplication15.Foo()
+{
+    ConsoleApplication15.A var0;
+    System.Func`1[ConsoleApplication15.A] var1;
+    ConsoleApplication15.B var2;
+    ConsoleApplication15.D var3;
+    ConsoleApplication15.Foo var4;
+    
+    {
+        {
+            var0 = new ConsoleApplication15.A();            
+        }
+        
+        {
+            var1 = () => (ConsoleApplication15.A)(Microsoft.Practices.Unity.IUnityContainer.Resolve(.Constant<System.RuntimeType>, "", .Constant<Microsoft.Practices.Unity.ResolverOverride[]>));            
+        }
+        
+        {
+            var2 = new ConsoleApplication15.B(var0, var1);            
+        }
+        
+        {
+            var3 = (Microsoft.Practices.Unity.InjectionFactory+<>c__DisplayClass2.<.ctor>b__0(.Constant<QuickInject.QuickInjectContainer>, .Constant<System.RuntimeType>, "") as ConsoleApplication15.D);            
+        }
+        
+        {
+            var4 = new ConsoleApplication15.Foo(var2, var3);            
+        }
+        
+    }
+    
+    return var4;
+}
+```
