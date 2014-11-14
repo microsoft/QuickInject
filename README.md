@@ -431,7 +431,7 @@ namespace QuickInjectPerformanceTest
 Generated Code Examples
 -----------------------
 
-# No optimizing visitors
+* No optimizing visitors
 
 ```cs
 static ConsoleApplication15.Foo Create_ConsoleApplication15.Foo()
@@ -482,9 +482,9 @@ static ConsoleApplication15.Foo Create_ConsoleApplication15.Foo()
     }    
     return var4;
 }
-```cs
+```
 
-# With Transient lifetime Removal optimizer
+* With Transient lifetime Removal optimizer
 
 ```cs
 static ConsoleApplication15.Foo Create_ConsoleApplication15.Foo()
