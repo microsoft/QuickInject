@@ -604,6 +604,23 @@ namespace QuickInjectUnitTests
             Assert.AreSame(a, b);
         }
 
+        [TestMethod]
+        public void LifetimeManagerWillProvideValueForAnInterfaceType()
+        {
+            var container = new QuickInjectContainer();
+            container.AddBuildPlanVisitor(new TransientLifetimeRemovalBuildPlanVisitor());
+
+            var lifetime = new ContainerControlledLifetimeManager();
+            var foo = new Foo();
+            lifetime.SetValue(foo);
+
+            container.RegisterType<IFoo>(lifetime);
+
+            var a = container.Resolve<IFoo>();
+
+            Assert.AreSame(a, foo);
+        }
+
         public class SuperFoo : Foo
         {
 
