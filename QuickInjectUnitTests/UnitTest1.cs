@@ -621,6 +621,23 @@ namespace QuickInjectUnitTests
             Assert.AreSame(a, foo);
         }
 
+        [TestMethod]
+        public void FuncOfTTest()
+        {
+            var container = new QuickInjectContainer();
+            container.AddBuildPlanVisitor(new TransientLifetimeRemovalBuildPlanVisitor());
+
+            var lifetime = new ContainerControlledLifetimeManager();
+            var foo = new Foo();
+            lifetime.SetValue(foo);
+
+            container.RegisterType<IFoo>(lifetime);
+
+            var a = container.Resolve<Func<IFoo>>();
+
+            Assert.AreSame(a(), foo);
+        }
+
         public class SuperFoo : Foo
         {
 
