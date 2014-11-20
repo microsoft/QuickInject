@@ -11,6 +11,7 @@ namespace QuickInjectUnitTests
     using Microsoft.Practices.Unity;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
     using QuickInject;
+    using QuickInject.BuildPlanVisitors;
 
     public class MyDependency
     {
@@ -512,6 +513,115 @@ namespace QuickInjectUnitTests
             IHaveManyGenericTypesClosed b = new List<IHaveManyGenericTypesClosed>(info.ThreadResults.Values)[1];
 
             Assert.AreNotSame(a, b);
+        }
+
+        [TestMethod]
+        public void TwoInterfacesMappedToSameConcreteTypeGetSameInstance()
+        {
+            IUnityContainer container = new QuickInjectContainer();
+            container.RegisterType<IFoo, Foo>(new ContainerControlledLifetimeManager());
+            container.RegisterType<IBar, Foo>();
+            var foo = container.Resolve<IFoo>();
+            var bar = container.Resolve<IBar>();
+
+            Assert.AreSame(foo, bar);
+        }
+
+        [TestMethod]
+        public void ComplicatedRegistrationsWithChildContainerLifetimes1()
+        {
+            var container = new QuickInjectContainer();
+            container.AddBuildPlanVisitor(new TransientLifetimeRemovalBuildPlanVisitor());
+            var child = container.CreateChildContainer();
+
+            var correctInstanceForIFooResolutionFromChild = new Foo();
+            var correctInstanceForFooResolutionFromChild = new SuperFoo();
+
+            var preSetFooOnLifetime = new Foo();
+            SuperFoo fooResolvedFromMainContainer = new SuperFoo();
+
+            var lifetime = new ContainerControlledLifetimeManager();
+            lifetime.SetValue(preSetFooOnLifetime);
+
+            container.RegisterType<IFoo, Foo>(new ContainerControlledLifetimeManager(), new Microsoft.Practices.Unity.InjectionFactory(c => new Foo()));
+            container.RegisterType<IBar, Foo>(new ContainerControlledLifetimeManager(), new Microsoft.Practices.Unity.InjectionFactory(c => correctInstanceForIFooResolutionFromChild));
+            container.RegisterType<Foo, SuperFoo>(new ContainerControlledLifetimeManager(), new Microsoft.Practices.Unity.InjectionFactory(c => fooResolvedFromMainContainer));
+
+            child.RegisterType<Foo, SuperFoo>(new ContainerControlledLifetimeManager(), new Microsoft.Practices.Unity.InjectionFactory(c => correctInstanceForFooResolutionFromChild));
+
+            var f = container.Resolve<Foo>();
+            var g = container.Resolve<Foo>();
+
+            Assert.AreSame(child.Resolve<IBar>(), correctInstanceForIFooResolutionFromChild);
+            Assert.AreSame(child.Resolve<IFoo>(), correctInstanceForIFooResolutionFromChild);
+            Assert.AreSame(child.Resolve<Foo>(), correctInstanceForFooResolutionFromChild);
+        }
+
+        [TestMethod]
+        public void ComplicatedRegistrationsWithChildContainerLifetimes2()
+        {
+            var container = new QuickInjectContainer();
+            container.AddBuildPlanVisitor(new TransientLifetimeRemovalBuildPlanVisitor());
+            var child = container.CreateChildContainer();
+
+            var correctInstanceForIFooResolutionFromChild = new Foo();
+            var correctInstanceForFooResolutionFromChild = new SuperFoo();
+
+            var preSetFooOnLifetime = new Foo();
+            SuperFoo fooResolvedFromMainContainer = new SuperFoo();
+
+            var lifetime = new ContainerControlledLifetimeManager();
+            lifetime.SetValue(fooResolvedFromMainContainer);
+
+            container.RegisterType<IFoo, Foo>(new ContainerControlledLifetimeManager(), new Microsoft.Practices.Unity.InjectionFactory(c => new Foo()));
+            container.RegisterType<IBar, Foo>(new ContainerControlledLifetimeManager(), new Microsoft.Practices.Unity.InjectionFactory(c => correctInstanceForIFooResolutionFromChild));
+            container.RegisterType<Foo, SuperFoo>(new ContainerControlledLifetimeManager(), new Microsoft.Practices.Unity.InjectionFactory(c => fooResolvedFromMainContainer));
+            container.RegisterType<SuperFoo>(lifetime);
+            child.RegisterType<Foo, SuperFoo>(new ContainerControlledLifetimeManager(), new Microsoft.Practices.Unity.InjectionFactory(c => correctInstanceForFooResolutionFromChild));
+
+            var f = container.Resolve<Foo>();
+            var g = container.Resolve<Foo>();
+
+            Assert.AreSame(child.Resolve<IBar>(), correctInstanceForIFooResolutionFromChild);
+            Assert.AreSame(child.Resolve<IFoo>(), correctInstanceForIFooResolutionFromChild);
+            Assert.AreSame(child.Resolve<Foo>(), correctInstanceForFooResolutionFromChild);
+            Assert.AreSame(container.Resolve<Foo>(), fooResolvedFromMainContainer);
+            Assert.AreSame(container.Resolve<SuperFoo>(), fooResolvedFromMainContainer);
+        }
+
+        [TestMethod]
+        public void SetValueCallsArePreservedWhenTransientLifetimeRemovalRuns()
+        {
+            var container = new QuickInjectContainer();
+            container.AddBuildPlanVisitor(new TransientLifetimeRemovalBuildPlanVisitor());
+            
+            container.RegisterType<IFoo, Foo>(new ContainerControlledLifetimeManager(), new Microsoft.Practices.Unity.InjectionFactory(c => new Foo()));
+            container.RegisterType<IBar, Foo>(new ContainerControlledLifetimeManager(), new Microsoft.Practices.Unity.InjectionFactory(c => new Foo()));
+
+            var a = container.Resolve<IFoo>();
+            var b = container.Resolve<IBar>();
+
+            Assert.AreSame(a, b);
+        }
+
+        public class SuperFoo : Foo
+        {
+
+        }
+
+        public class Foo : IFoo, IBar
+        {
+
+        }
+
+        public interface IFoo
+        {
+
+        }
+
+        public interface IBar
+        {
+
         }
 
         public class ContainerReturnsDifferentInstancesOnDifferentThreads_ThreadInformation

@@ -55,6 +55,10 @@
                         {
                             continue;
                         }
+                        else
+                        {
+                            modifiedExpressionList.Add(expression);
+                        }
                     }
                     else
                     {

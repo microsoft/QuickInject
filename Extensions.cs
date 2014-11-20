@@ -11,6 +11,18 @@
     {
         private static readonly FieldInfo InjectionFactoryFieldInfo = typeof(Microsoft.Practices.Unity.InjectionFactory).GetTypeInfo().GetDeclaredField("factoryFunc");
 
+        public static void AddOrUpdate<K, V>(this Dictionary<K, V> instance, K key, V value)
+        {
+            if (instance.ContainsKey(key))
+            {
+                instance[key] = value;
+            }
+            else
+            {
+                instance.Add(key, value);
+            }
+        }
+
         public static ConstructorInfo GetLongestConstructor(this Type type)
         {
             ConstructorInfo[] ctors = type.GetTypeInfo().DeclaredConstructors.Where(t => t.IsPublic).ToArray();

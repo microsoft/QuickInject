@@ -22,15 +22,15 @@
 
         private readonly QuickInjectContainer parentContainer;
 
-        private readonly Dictionary<Type, TypeRegistration> registrationTable = new Dictionary<Type, TypeRegistration>();
+        private readonly Dictionary<Type, Type> typeMappingTable = new Dictionary<Type, Type>();
 
-        private readonly Dictionary<Type, List<Type>> typeReverseIndex = new Dictionary<Type, List<Type>>();
+        private readonly Dictionary<Type, LifetimeManager> lifetimeTable = new Dictionary<Type, LifetimeManager>();
+
+        private readonly Dictionary<Type, Expression> factoryExpressionTable = new Dictionary<Type, Expression>();
 
         private readonly Dictionary<Type, BuildPlan> buildPlanTable = new Dictionary<Type, BuildPlan>();
 
         private readonly Dictionary<Type, BuildPlan> slowBuildPlanTable = new Dictionary<Type, BuildPlan>();
-
-        private readonly Dictionary<Type, LifetimeManager> fallbackLifetimeTable = new Dictionary<Type, LifetimeManager>();
 
         private readonly List<IBuildPlanVisitor> buildPlanVisitors = new List<IBuildPlanVisitor>();
 
@@ -44,7 +44,9 @@
         {
             this.extensionImpl = new ExtensionImpl(this, new DummyPolicyList());
             this.buildPlanTable.Add(UnityContainerType, new BuildPlan { IsCompiled = false });
-            this.registrationTable.Add(UnityContainerType, new TypeRegistration(UnityContainerType, UnityContainerType, new ContainerControlledLifetimeManager(), Expression.Constant(this)));
+
+            this.lifetimeTable.Add(UnityContainerType, new ContainerControlledLifetimeManager());
+            this.factoryExpressionTable.Add(UnityContainerType, Expression.Constant(this));
 
             this.Registering += delegate { };
             this.RegisteringInstance += delegate { };
@@ -71,7 +73,9 @@
             this.parentContainer = parent;
             this.extensionImpl = this.parentContainer.extensionImpl;
             this.buildPlanTable.Add(UnityContainerType, new BuildPlan { IsCompiled = false });
-            this.registrationTable.Add(UnityContainerType, new TypeRegistration(UnityContainerType, UnityContainerType, new ContainerControlledLifetimeManager(), Expression.Constant(this)));
+
+            this.lifetimeTable.Add(UnityContainerType, new ContainerControlledLifetimeManager());
+            this.factoryExpressionTable.Add(UnityContainerType, Expression.Constant(this));
         }
 
         internal event EventHandler<RegisterEventArgs> Registering;
@@ -135,47 +139,28 @@
 
         public IUnityContainer RegisterInstance(Type t, string name, object instance, LifetimeManager lifetime)
         {
+            if (instance == null)
+            {
+                throw new ArgumentNullException("instance");
+            }
+
+            if (lifetime == null)
+            {
+                throw new ArgumentNullException("lifetime");
+            }
+
             if (!string.IsNullOrEmpty(name))
             {
                 throw new NotSupportedException("Named registrations are not supported");
             }
 
-            if (lifetime == null)
-            {
-                throw new NotSupportedException("Lifetime for instance registrations is required");
-            }
-
-            Expression expression = Expression.Constant(instance);
-
             this.RegisteringInstance(this, new RegisterInstanceEventArgs(t, instance, name, lifetime));
 
             lock (this.lockObj)
             {
-                var registration = new TypeRegistration(t, t, lifetime, expression);
-
-                if (this.registrationTable.ContainsKey(t))
-                {
-                    var existingRegistration = this.registrationTable[t];
-                    existingRegistration.LifetimeManager = lifetime;
-                    existingRegistration.Factory = expression;
-                    registration = existingRegistration;
-                }
-                else
-                {
-                    this.registrationTable.Add(t, registration);
-                }
-
-                if (this.typeReverseIndex.ContainsKey(t))
-                {
-                    // fix up all the entries previously pointing to this "registrationType"
-                    foreach (var x in this.typeReverseIndex[t])
-                    {
-                        this.registrationTable[x].Factory = expression;
-                        this.registrationTable[x].LifetimeManager = registration.LifetimeManager;
-                    }
-                }
-
-                registration.LifetimeManager.SetValue(instance);
+                lifetime.SetValue(instance);
+                this.lifetimeTable.AddOrUpdate(t, lifetime);
+                this.factoryExpressionTable.AddOrUpdate(t, Expression.Constant(instance));
 
                 var plan = new BuildPlan { IsCompiled = false };
                 if (this.buildPlanTable.ContainsKey(t))
@@ -193,6 +178,16 @@
 
         public IUnityContainer RegisterType(Type from, Type to, string name, LifetimeManager lifetimeManager, params InjectionMember[] injectionMembers)
         {
+            if (to == null)
+            {
+                throw new ArgumentNullException("to");
+            }
+
+            if (injectionMembers == null)
+            {
+                throw new ArgumentNullException("injectionMembers");
+            }
+
             if ((from != null && from.GetTypeInfo().IsGenericTypeDefinition) || to.GetTypeInfo().IsGenericTypeDefinition)
             {
                 throw new ArgumentException("Open Generic Types are not supported");
@@ -208,116 +203,32 @@
                 throw new NotSupportedException("Multiple injection members are not supported");
             }
 
-            Type registrationType = from ?? to;
-            var registration = new TypeRegistration(registrationType, to, lifetimeManager, injectionMembers.Length == 1 ? injectionMembers[0].GenExpression(registrationType, this) : null);
-
-            Logger.RegisterType(registrationType, to, lifetimeManager);
+            Logger.RegisterType(from ?? to, to, lifetimeManager);
             this.Registering(this, new RegisterEventArgs(from, to, name, lifetimeManager));
 
             lock (this.lockObj)
             {
-                if (this.registrationTable.ContainsKey(registrationType))
+                if (from != null)
                 {
-                    var existingRegistration = this.registrationTable[registrationType];
-
-                    existingRegistration.MappedToType = to;
-
-                    if (lifetimeManager != null)
-                    {
-                        existingRegistration.LifetimeManager = lifetimeManager;
-                    }
-
-                    if (injectionMembers.Length == 1)
-                    {
-                        existingRegistration.Factory = registration.Factory;
-                    }
-
-                    registration = existingRegistration;
-                }
-                else
-                {
-                    this.registrationTable.Add(registrationType, registration);
+                    this.typeMappingTable.AddOrUpdate(from, to);
                 }
 
-                if (registration.Factory == null)
+                if (lifetimeManager != null)
                 {
-                    registration.MappedToType = this.MostSignificantMappedToType(registration.MappedToType);
-                    registration.Factory = this.FactoryForType(registration.MappedToType);
+                    this.lifetimeTable.AddOrUpdate(to, lifetimeManager);
                 }
 
-                if (registration.LifetimeManager != null)
-                {
-                    if (this.fallbackLifetimeTable.ContainsKey(registration.MappedToType))
-                    {
-                        this.fallbackLifetimeTable[registration.MappedToType] = registration.LifetimeManager;
-                    }
-                    else
-                    {
-                        this.fallbackLifetimeTable.Add(registration.MappedToType, registration.LifetimeManager);
-                    }
-                }
-
-                // build reverse index if from and to are different types
-                if (from != null && from != to)
-                {
-                    if (this.typeReverseIndex.ContainsKey(to))
-                    {
-                        this.typeReverseIndex[to].Add(from);
-                    }
-                    else
-                    {
-                        this.typeReverseIndex.Add(to, new List<Type> { from });
-                    }
-                }
-
-                // lifetimes
-                if (registration.LifetimeManager != null)
-                {
-                    if (this.typeReverseIndex.ContainsKey(registrationType))
-                    {
-                        // fix up all the entries previously pointing to this "registrationType"
-                        foreach (var x in this.typeReverseIndex[registrationType])
-                        {
-                            this.registrationTable[x].LifetimeManager = registration.LifetimeManager;
-                        }
-                    }
-                }
-
-                // Being asked to register as a factory
                 if (injectionMembers.Length == 1)
                 {
-                    if (this.typeReverseIndex.ContainsKey(registrationType))
-                    {
-                        // fix up all the entries previously pointing to this "registrationType"
-                        foreach (var x in this.typeReverseIndex[registrationType])
-                        {
-                            this.registrationTable[x].Factory = registration.Factory;
-                        }
-                    }
-                }
-                else
-                {
-                    // fix up all the mappings of previously registered types
-                    if (from != null && from != to)
-                    {
-                        if (this.typeReverseIndex.ContainsKey(from))
-                        {
-                            foreach (var x in this.typeReverseIndex[from])
-                            {
-                                this.registrationTable[x].MappedToType = to;
-                            }
-                        }
-                    }
+                    this.factoryExpressionTable.AddOrUpdate(to, injectionMembers.Length == 1 ? injectionMembers[0].GenExpression(to, this) : null);
                 }
 
                 var plan = new BuildPlan { IsCompiled = false };
-                if (this.buildPlanTable.ContainsKey(registrationType))
+                this.buildPlanTable.AddOrUpdate(to, plan);
+
+                if (from != null)
                 {
-                    this.buildPlanTable[registrationType] = plan;
-                }
-                else
-                {
-                    this.buildPlanTable.Add(registrationType, plan);
+                    this.buildPlanTable.AddOrUpdate(from, plan);
                 }
             }
 
@@ -381,34 +292,13 @@
         private Func<object> CompilePlan(Type t, Dictionary<Type, BuildPlan> planTable, bool slowPath)
         {
             var depTree = t.BuildDependencyTree(this.Dependencies);
-            var topologicalOrdering = depTree.Sort(node => node.Children).Select(x => x.Value);
-            IEnumerable<Type> types = topologicalOrdering;
+            IEnumerable<Type> types = depTree.Sort(node => node.Children).Select(x => x.Value);
 
             var typeRegistrations = new List<TypeRegistration>();
             foreach (var type in types)
             {
-                var registration = this.GetRegistration(type);
-                if (registration == null)
-                {
-#if DEBUG
-                    if (Logger.IsEnabled())
-                    {
-                        Logger.UnregisteredResolve(type.ToString());
-                    }
-#endif
-                    typeRegistrations.Add(new TypeRegistration(type, type, this.GetFallbackLifetimeManager(type), null));
-                }
-                else
-                {
-                    if (registration.LifetimeManager == null)
-                    {
-                        typeRegistrations.Add(new TypeRegistration(registration.RegistrationType, registration.MappedToType, new TransientLifetimeManager(), registration.Factory));
-                    }
-                    else
-                    {
-                        typeRegistrations.Add(registration);    
-                    }
-                }
+                var mappedType = this.GetMappingFor(type);
+                typeRegistrations.Add(new TypeRegistration(type, mappedType, this.GetLifetimeFor(mappedType), this.GetFactoryExpressionFor(mappedType)));
             }
 
             var codeGenerator = new ExpressionGenerator(this, typeRegistrations);
@@ -486,113 +376,86 @@
 
         private IEnumerable<Type> Dependencies(Type type)
         {
-            if (this.registrationTable.ContainsKey(type))
+            Type mappedType = this.GetMappingFor(type);
+            Expression expression = this.GetFactoryExpressionFor(mappedType);
+
+            if (expression != null)
             {
-                var registration = this.registrationTable[type];
-
-                // container.RegisterType<IFoo>(new *InjectionFactory(...))
-                if (registration.Factory != null)
+                // container.RegisterType<IFoo>(new InjectionFactory(...))
+                if (expression.GetType() == typeof(ParameterizedInjectionFactoryMethodCallExpression))
                 {
-                    // container.RegisterType<IFoo>(new InjectionFactory(...))
-                    if (registration.Factory.GetType() == typeof(ParameterizedInjectionFactoryMethodCallExpression))
-                    {
-                        return ((ParameterizedInjectionFactoryMethodCallExpression)registration.Factory).DependentTypes;
-                    }
-
-                    // container.RegisterType<IFoo>(new ParameterizedInjectionFactory<IProvider1, IProvider2, IFoo>(...))
-                    if (registration.Factory.GetType() == typeof(ParameterizedLambdaExpressionInjectionFactoryMethodCallExpression))
-                    {
-                        return ((ParameterizedLambdaExpressionInjectionFactoryMethodCallExpression)registration.Factory).DependentTypes;
-                    }
-
-                    // Opaque, has no dependencies
-                    return Enumerable.Empty<Type>();
+                    return ((ParameterizedInjectionFactoryMethodCallExpression)expression).DependentTypes;
                 }
 
-                // container.RegisterType<IFoo, Foo>();
-                if (registration.RegistrationType != registration.MappedToType)
+                // container.RegisterType<IFoo>(new ParameterizedInjectionFactory<IProvider1, IProvider2, IFoo>(...))
+                if (expression.GetType() == typeof(ParameterizedLambdaExpressionInjectionFactoryMethodCallExpression))
                 {
-                    return this.Dependencies(registration.MappedToType);
+                    return ((ParameterizedLambdaExpressionInjectionFactoryMethodCallExpression)expression).DependentTypes;
                 }
 
-                // container.RegisterType<IFoo>(new LifetimeManagerWillProvideValue())
-                if (type.GetTypeInfo().IsInterface || type.GetTypeInfo().IsAbstract)
-                {
-                    return Enumerable.Empty<Type>();
-                }
-
-                // container.RegisterType<Foo>();
-                return type.ConstructorDependencies();
-            }
-
-            // crawl parent containers
-            while (this.parentContainer != null)
-            {
-                return this.parentContainer.Dependencies(type);
+                // Opaque, has no dependencies
+                return Enumerable.Empty<Type>();
             }
 
             // Special Case: Func<T> that is not registered
-            if (type.GetTypeInfo().IsGenericType && type.GetGenericTypeDefinition() == typeof(Func<>))
+            if (mappedType.GetTypeInfo().IsGenericType && mappedType.GetGenericTypeDefinition() == typeof(Func<>))
             {
                 return Enumerable.Empty<Type>();
             }
 
             // Regular class that can be constructed
-            return type.ConstructorDependencies();
+            return mappedType.ConstructorDependencies();
         }
 
-        private LifetimeManager GetFallbackLifetimeManager(Type type)
+        private LifetimeManager GetLifetimeFor(Type type)
         {
-            if (this.fallbackLifetimeTable.ContainsKey(type))
+            LifetimeManager lifetime;
+
+            if (this.lifetimeTable.TryGetValue(type, out lifetime))
             {
-                return this.fallbackLifetimeTable[type];
+                return lifetime;
             }
 
             while (this.parentContainer != null)
             {
-                return this.parentContainer.GetFallbackLifetimeManager(type);
+                return this.parentContainer.GetLifetimeFor(type);
             }
 
             return new TransientLifetimeManager();
         }
 
-        private TypeRegistration GetRegistration(Type type)
+        private Type GetMappingFor(Type type)
         {
-            if (this.registrationTable.ContainsKey(type))
+            Type mappedType;
+
+            if (this.typeMappingTable.TryGetValue(type, out mappedType))
             {
-                return this.registrationTable[type];
+                return mappedType;
             }
 
             while (this.parentContainer != null)
             {
-                return this.parentContainer.GetRegistration(type);
-            }
-
-            return null;
-        }
-
-        private Type MostSignificantMappedToType(Type type)
-        {
-            if (this.registrationTable.ContainsKey(type))
-            {
-                Type mappedType = this.registrationTable[type].MappedToType;
-                if (type != mappedType)
-                {
-                    return this.MostSignificantMappedToType(this.registrationTable[mappedType].MappedToType);
-                }
+                return this.parentContainer.GetMappingFor(type);
             }
 
             return type;
         }
 
-        private Expression FactoryForType(Type type)
+        private Expression GetFactoryExpressionFor(Type type)
         {
-            if (this.registrationTable.ContainsKey(type))
+            Expression expression;
+
+            if (this.factoryExpressionTable.TryGetValue(type, out expression))
             {
-                return this.registrationTable[type].Factory;
+                return expression;
             }
 
-            return null;
+            while (this.parentContainer != null)
+            {
+                return this.parentContainer.GetFactoryExpressionFor(type);
+            }
+
+            return expression;
         }
     }
 }
