@@ -45,7 +45,6 @@
             this.extensionImpl = new ExtensionImpl(this, new DummyPolicyList());
             this.buildPlanTable.Add(UnityContainerType, new BuildPlan { IsCompiled = false });
 
-            this.lifetimeTable.Add(UnityContainerType, new ContainerControlledLifetimeManager());
             this.factoryExpressionTable.Add(UnityContainerType, Expression.Constant(this));
 
             this.Registering += delegate { };
@@ -74,7 +73,6 @@
             this.extensionImpl = this.parentContainer.extensionImpl;
             this.buildPlanTable.Add(UnityContainerType, new BuildPlan { IsCompiled = false });
 
-            this.lifetimeTable.Add(UnityContainerType, new ContainerControlledLifetimeManager());
             this.factoryExpressionTable.Add(UnityContainerType, Expression.Constant(this));
         }
 
@@ -220,7 +218,7 @@
 
                 if (injectionMembers.Length == 1)
                 {
-                    this.factoryExpressionTable.AddOrUpdate(to, injectionMembers.Length == 1 ? injectionMembers[0].GenExpression(to, this) : null);
+                    this.factoryExpressionTable.AddOrUpdate(to, injectionMembers[0].GenExpression(to, this));
                 }
 
                 var plan = new BuildPlan { IsCompiled = false };
