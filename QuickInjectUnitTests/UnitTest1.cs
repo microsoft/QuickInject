@@ -12,6 +12,7 @@ namespace QuickInjectUnitTests
     using Microsoft.VisualStudio.TestTools.UnitTesting;
     using QuickInject;
     using QuickInject.BuildPlanVisitors;
+    using Microsoft.Practices.ObjectBuilder2;
 
     public class MyDependency
     {
@@ -636,6 +637,61 @@ namespace QuickInjectUnitTests
             var a = container.Resolve<Func<IFoo>>();
 
             Assert.AreSame(a(), foo);
+        }
+
+        [TestMethod]
+        public void SynchronizedLifetimeManagerRecoveryTestWithExceptionReThrownAndRecoverCalled()
+        {
+            var container = new QuickInjectContainer();
+            container.AddBuildPlanVisitor(new LifetimeManagerRequiresRecoveryBuildPlanVisitor());
+
+            var lifetime = new ThrowRecordingSynchronizedLifetimeManager();
+            container.RegisterType<Foo>(lifetime, new Microsoft.Practices.Unity.InjectionFactory(c =>
+            {
+                throw new ArgumentNullException("Foobar");
+            }));
+
+            bool exceptionWasReThrown = false;
+
+            try
+            {
+                container.Resolve<Foo>();
+            }
+            catch (ArgumentNullException)
+            {
+                exceptionWasReThrown = true;
+            }
+
+            Assert.IsTrue(exceptionWasReThrown);
+            Assert.IsTrue(lifetime.RecoverWasCalled);
+        }
+
+
+        public class ThrowRecordingSynchronizedLifetimeManager : LifetimeManager, IRequiresRecovery
+        {
+            private object store;
+
+            public bool RecoverWasCalled { get; private set; }
+
+            public override object GetValue()
+            {
+                return this.store;
+            }
+
+            public void Recover()
+            {
+                this.RecoverWasCalled = true;
+            }
+
+            public override void RemoveValue()
+            {
+                throw new NotImplementedException();
+            }
+
+            public override void SetValue(object newValue)
+            {
+                this.store = newValue;
+            }
         }
 
         public class SuperFoo : Foo
