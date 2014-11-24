@@ -143,12 +143,12 @@ namespace QuickInject
             return new ImmutableDictionary<K, V>(_hashCode, _key, _value, _conflicts, left, right);
         }
 
-        private sealed class KV<K, V>
+        private sealed class KV<T, TK>
         {
-            public readonly K Key;
-            public readonly V Value;
+            public readonly T Key;
+            public readonly TK Value;
 
-            public KV(K key, V value)
+            public KV(T key, TK value)
             {
                 Key = key;
                 Value = value;
