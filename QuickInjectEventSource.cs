@@ -17,19 +17,9 @@
             this.WriteEvent(1, from, to, lifetimeType);
         }
 
-        public void FastResolve(string type)
+        public void Resolve(string type)
         {
             this.WriteEvent(2, type);
-        }
-
-        public void SlowResolve(string type)
-        {
-            this.WriteEvent(3, type);
-        }
-
-        public void UnregisteredResolve(string type)
-        {
-            this.WriteEvent(4, type);
         }
     }
 }

@@ -29,19 +29,6 @@ THE SOFTWARE.
 namespace QuickInject
 {
     using System;
-    using System.Collections.Generic;
-
-    internal sealed class KV<K, V>
-    {
-        public readonly K Key;
-        public readonly V Value;
-
-        public KV(K key, V value)
-        {
-            Key = key;
-            Value = value;
-        }
-    }
 
     /// <summary>
     /// Immutable kind of http://en.wikipedia.org/wiki/AVL_tree, where actual node key is <typeparamref name="K"/> hash code.
@@ -50,14 +37,21 @@ namespace QuickInject
     {
         public static readonly ImmutableDictionary<K, V> Empty = new ImmutableDictionary<K, V>();
 
-        public readonly int Hash;
-        public readonly K Key;
-        public readonly V Value;
-        public readonly KV<K, V>[] Conflicts;
-        public readonly ImmutableDictionary<K, V> Left, Right;
-        public readonly int Height;
+        private readonly int _hashCode;
 
-        public bool IsEmpty { get { return Height == 0; } }
+        private readonly K _key;
+
+        private readonly V _value;
+
+        private readonly KV<K, V>[] _conflicts;
+
+        private readonly ImmutableDictionary<K, V> _leftChild;
+
+        private readonly ImmutableDictionary<K, V> _rightChild;
+
+        private readonly int _height;
+
+        public bool IsEmpty { get { return _height == 0; } }
 
         public delegate V UpdateValue(V current, V added);
 
@@ -70,115 +64,95 @@ namespace QuickInject
         {
             var t = this;
             var hash = key.GetHashCode();
-            while (t.Height != 0 && t.Hash != hash)
-                t = hash < t.Hash ? t.Left : t.Right;
-            return t.Height != 0 && (ReferenceEquals(key, t.Key) || key.Equals(t.Key)) ? t.Value
+            while (t._height != 0 && t._hashCode != hash)
+                t = hash < t._hashCode ? t._leftChild : t._rightChild;
+            return t._height != 0 && (ReferenceEquals(key, t._key) || key.Equals(t._key)) ? t._value
                 : t.GetConflictedValueOrDefault(key, defaultValue);
         }
 
-        /// <summary>
-        /// Depth-first in-order traversal as described in http://en.wikipedia.org/wiki/Tree_traversal
-        /// The only difference is using fixed size array instead of stack for speed-up (~20% faster than stack).
-        /// </summary>
-        public IEnumerable<KV<K, V>> TraverseInOrder()
-        {
-            var parents = new ImmutableDictionary<K, V>[Height];
-            var parentCount = -1;
-            var t = this;
-            while (!t.IsEmpty || parentCount != -1)
-            {
-                if (!t.IsEmpty)
-                {
-                    parents[++parentCount] = t;
-                    t = t.Left;
-                }
-                else
-                {
-                    t = parents[parentCount--];
-                    yield return new KV<K, V>(t.Key, t.Value);
-                    if (t.Conflicts != null)
-                        for (var i = 0; i < t.Conflicts.Length; i++)
-                            yield return t.Conflicts[i];
-                    t = t.Right;
-                }
-            }
-        }
-
-        #region Implementation
-
         private ImmutableDictionary() { }
 
-        private ImmutableDictionary(int hash, K key, V value, KV<K, V>[] conficts, ImmutableDictionary<K, V> left, ImmutableDictionary<K, V> right)
+        private ImmutableDictionary(int hashCode, K key, V value, KV<K, V>[] conficts, ImmutableDictionary<K, V> leftChild, ImmutableDictionary<K, V> rightChild)
         {
-            Hash = hash;
-            Key = key;
-            Value = value;
-            Conflicts = conficts;
-            Left = left;
-            Right = right;
-            Height = 1 + (left.Height > right.Height ? left.Height : right.Height);
+            _hashCode = hashCode;
+            _key = key;
+            _value = value;
+            _conflicts = conficts;
+            _leftChild = leftChild;
+            _rightChild = rightChild;
+            _height = 1 + (leftChild._height > rightChild._height ? leftChild._height : rightChild._height);
         }
 
         private static V ReplaceValue(V _, V added) { return added; }
 
         private ImmutableDictionary<K, V> AddOrUpdate(int hash, K key, V value, UpdateValue updateValue)
         {
-            return Height == 0 ? new ImmutableDictionary<K, V>(hash, key, value, null, Empty, Empty)
-                : (hash == Hash ? ResolveConflicts(key, value, updateValue)
-                : (hash < Hash
-                    ? With(Left.AddOrUpdate(hash, key, value, updateValue), Right)
-                    : With(Left, Right.AddOrUpdate(hash, key, value, updateValue)))
+            return _height == 0 ? new ImmutableDictionary<K, V>(hash, key, value, null, Empty, Empty)
+                : (hash == _hashCode ? ResolveConflicts(key, value, updateValue)
+                : (hash < _hashCode
+                    ? With(_leftChild.AddOrUpdate(hash, key, value, updateValue), _rightChild)
+                    : With(_leftChild, _rightChild.AddOrUpdate(hash, key, value, updateValue)))
                         .EnsureBalanced());
         }
 
         private ImmutableDictionary<K, V> ResolveConflicts(K key, V value, UpdateValue updateValue)
         {
-            if (ReferenceEquals(Key, key) || Key.Equals(key))
-                return new ImmutableDictionary<K, V>(Hash, key, updateValue(Value, value), Conflicts, Left, Right);
+            if (ReferenceEquals(_key, key) || _key.Equals(key))
+                return new ImmutableDictionary<K, V>(_hashCode, key, updateValue(_value, value), _conflicts, _leftChild, _rightChild);
 
-            if (Conflicts == null)
-                return new ImmutableDictionary<K, V>(Hash, Key, Value, new[] { new KV<K, V>(key, value) }, Left, Right);
+            if (_conflicts == null)
+                return new ImmutableDictionary<K, V>(_hashCode, _key, _value, new[] { new KV<K, V>(key, value) }, _leftChild, _rightChild);
 
-            var i = Conflicts.Length - 1;
-            while (i >= 0 && !Equals(Conflicts[i].Key, Key)) i--;
-            var conflicts = new KV<K, V>[i != -1 ? Conflicts.Length : Conflicts.Length + 1];
-            Array.Copy(Conflicts, 0, conflicts, 0, Conflicts.Length);
-            conflicts[i != -1 ? i : Conflicts.Length] = new KV<K, V>(key, i != -1 ? updateValue(Conflicts[i].Value, value) : value);
-            return new ImmutableDictionary<K, V>(Hash, Key, Value, conflicts, Left, Right);
+            var i = _conflicts.Length - 1;
+            while (i >= 0 && !Equals(_conflicts[i].Key, _key)) i--;
+            var conflicts = new KV<K, V>[i != -1 ? _conflicts.Length : _conflicts.Length + 1];
+            Array.Copy(_conflicts, 0, conflicts, 0, _conflicts.Length);
+            conflicts[i != -1 ? i : _conflicts.Length] = new KV<K, V>(key, i != -1 ? updateValue(_conflicts[i].Value, value) : value);
+            return new ImmutableDictionary<K, V>(_hashCode, _key, _value, conflicts, _leftChild, _rightChild);
         }
 
         private V GetConflictedValueOrDefault(K key, V defaultValue)
         {
-            if (Conflicts != null)
-                for (var i = 0; i < Conflicts.Length; i++)
-                    if (Equals(Conflicts[i].Key, key))
-                        return Conflicts[i].Value;
+            if (_conflicts != null)
+                for (var i = 0; i < _conflicts.Length; i++)
+                    if (Equals(_conflicts[i].Key, key))
+                        return _conflicts[i].Value;
             return defaultValue;
         }
 
         private ImmutableDictionary<K, V> EnsureBalanced()
         {
-            var delta = Left.Height - Right.Height;
-            return delta >= 2 ? With(Left.Right.Height - Left.Left.Height == 1 ? Left.RotateLeft() : Left, Right).RotateRight()
-                : (delta <= -2 ? With(Left, Right.Left.Height - Right.Right.Height == 1 ? Right.RotateRight() : Right).RotateLeft()
+            var delta = _leftChild._height - _rightChild._height;
+            return delta >= 2 ? With(_leftChild._rightChild._height - _leftChild._leftChild._height == 1 ? _leftChild.RotateLeft() : _leftChild, _rightChild).RotateRight()
+                : (delta <= -2 ? With(_leftChild, _rightChild._leftChild._height - _rightChild._rightChild._height == 1 ? _rightChild.RotateRight() : _rightChild).RotateLeft()
                 : this);
         }
 
         private ImmutableDictionary<K, V> RotateRight()
         {
-            return Left.With(Left.Left, With(Left.Right, Right));
+            return _leftChild.With(_leftChild._leftChild, With(_leftChild._rightChild, _rightChild));
         }
 
         private ImmutableDictionary<K, V> RotateLeft()
         {
-            return Right.With(With(Left, Right.Left), Right.Right);
+            return _rightChild.With(With(_leftChild, _rightChild._leftChild), _rightChild._rightChild);
         }
 
         private ImmutableDictionary<K, V> With(ImmutableDictionary<K, V> left, ImmutableDictionary<K, V> right)
         {
-            return new ImmutableDictionary<K, V>(Hash, Key, Value, Conflicts, left, right);
+            return new ImmutableDictionary<K, V>(_hashCode, _key, _value, _conflicts, left, right);
         }
 
-        #endregion
+        private sealed class KV<K, V>
+        {
+            public readonly K Key;
+            public readonly V Value;
+
+            public KV(K key, V value)
+            {
+                Key = key;
+                Value = value;
+            }
+        }
     }
 }

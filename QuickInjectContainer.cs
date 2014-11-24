@@ -225,7 +225,7 @@
 #if DEBUG
                 if (Logger.IsEnabled())
                 {
-                    Logger.FastResolve(t.ToString());
+                    Logger.Resolve(t.ToString());
                 }
 #endif
                 return plan();

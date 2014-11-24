@@ -67,14 +67,6 @@
             }
         }
 
-        /// <summary>
-        /// A de-duplicated ordering of the tree in depth first order
-        /// </summary>
-        public IEnumerable<T> Flatten()
-        {
-            return new[] { this.Value }.Union(this.children.SelectMany(t => t.Flatten()));
-        }
-
         public IEnumerator<ITreeNode<T>> GetEnumerator()
         {
             yield return this;

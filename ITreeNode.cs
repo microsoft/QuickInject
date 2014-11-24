@@ -18,7 +18,5 @@
         bool RemoveChild(ITreeNode<T> node);
 
         void Traverse(Action<T> action);
-
-        IEnumerable<T> Flatten();
     }
 }
