@@ -4,8 +4,6 @@
     using System.Collections.Generic;
     using System.IO;
     using System.Linq.Expressions;
-    using System.Reflection;
-    using Microsoft.Practices.Unity;
 
     public class GeneratedCodeTextWriterBuildPlanVisitor : IBuildPlanVisitor
     {
@@ -16,7 +14,7 @@
             this.writerResolver = writerResolver;
         }
 
-        public Expression Visitor(Expression expression, Type type, bool slowPath)
+        public Expression Visitor(Expression expression, Type type)
         {
             var writer = this.writerResolver(type);
             new GeneratedCodeTextWriterExpressionVisitor(this.writerResolver(type), type).Visit(expression);
@@ -156,7 +154,7 @@
                         }
                         else if (constant.Type == typeof(string))
                         {
-                            this.WriteIndented("\"" + constant.Value.ToString() + "\"");
+                            this.WriteIndented("\"" + constant.Value + "\"");
                         }
                         else
                         {
@@ -234,7 +232,7 @@
                         }
                         else if (constant.Type == typeof(string))
                         {
-                            this.WriteIndented("\"" + constant.Value.ToString() + "\"");
+                            this.WriteIndented("\"" + constant.Value + "\"");
                         }
                         else
                         {

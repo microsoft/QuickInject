@@ -39,9 +39,9 @@
     <Compile Include="BuildPlanVisitors\TransientLifetimeRemovalBuildPlanVisitor.cs" />
     <Compile Include="BuildPlanVisitors\TypeDeduplicationBuildPlanVisitor.cs" />
     <Compile Include="CyclicDependencyException.cs" />
+    <Compile Include="ImmutableDictionary.cs" />
     <Compile Include="QuickInjectContainer.cs" />
     <Compile Include="QuickInjectEventSource.cs" />
-    <Compile Include="BuildPlan.cs" />
     <Compile Include="ExpressionGenerator.cs" />
     <Compile Include="ExtensionImpl.cs" />
     <Compile Include="DummyBuilderContext.cs" />

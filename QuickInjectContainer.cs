@@ -28,22 +28,19 @@
 
         private readonly Dictionary<Type, Expression> factoryExpressionTable = new Dictionary<Type, Expression>();
 
-        private readonly Dictionary<Type, BuildPlan> buildPlanTable = new Dictionary<Type, BuildPlan>();
-
-        private readonly Dictionary<Type, BuildPlan> slowBuildPlanTable = new Dictionary<Type, BuildPlan>();
-
         private readonly List<IBuildPlanVisitor> buildPlanVisitors = new List<IBuildPlanVisitor>();
 
         private readonly ConcurrentDictionary<Type, PropertyInfo[]> propertyInfoTable = new ConcurrentDictionary<Type, PropertyInfo[]>();
 
         private readonly ExtensionImpl extensionImpl;
 
+        private ImmutableDictionary<Type, Func<object>> buildPlanTable = ImmutableDictionary<Type, Func<object>>.Empty;
+
         private Action<ITreeNode<Type>> dependencyTreeListener;
 
         public QuickInjectContainer()
         {
             this.extensionImpl = new ExtensionImpl(this, new DummyPolicyList());
-            this.buildPlanTable.Add(UnityContainerType, new BuildPlan { IsCompiled = false });
 
             this.factoryExpressionTable.Add(UnityContainerType, Expression.Constant(this));
 
@@ -71,7 +68,6 @@
 
             this.parentContainer = parent;
             this.extensionImpl = this.parentContainer.extensionImpl;
-            this.buildPlanTable.Add(UnityContainerType, new BuildPlan { IsCompiled = false });
 
             this.factoryExpressionTable.Add(UnityContainerType, Expression.Constant(this));
         }
@@ -159,16 +155,6 @@
                 lifetime.SetValue(instance);
                 this.lifetimeTable.AddOrUpdate(t, lifetime);
                 this.factoryExpressionTable.AddOrUpdate(t, Expression.Constant(instance));
-
-                var plan = new BuildPlan { IsCompiled = false };
-                if (this.buildPlanTable.ContainsKey(t))
-                {
-                    this.buildPlanTable[t] = plan;
-                }
-                else
-                {
-                    this.buildPlanTable.Add(t, plan);
-                }
             }
 
             return this;
@@ -220,14 +206,6 @@
                 {
                     this.factoryExpressionTable.AddOrUpdate(to, injectionMembers[0].GenExpression(to, this));
                 }
-
-                var plan = new BuildPlan { IsCompiled = false };
-                this.buildPlanTable.AddOrUpdate(to, plan);
-
-                if (from != null)
-                {
-                    this.buildPlanTable.AddOrUpdate(from, plan);
-                }
             }
 
             return this;
@@ -238,10 +216,11 @@
             throw new NotSupportedException();
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public object Resolve(Type t, string name, params ResolverOverride[] resolverOverrides)
         {
-            BuildPlan plan;
-            if (this.buildPlanTable.TryGetValue(t, out plan) && plan.IsCompiled)
+            Func<object> plan = this.buildPlanTable.GetValueOrDefault(t);
+            if (plan != null)
             {
 #if DEBUG
                 if (Logger.IsEnabled())
@@ -249,10 +228,10 @@
                     Logger.FastResolve(t.ToString());
                 }
 #endif
-                return plan.Expression();
+                return plan();
             }
 
-            return this.SlowResolve(t, plan == null)();
+            return this.CompilePlan(t)();
         }
 
         public IEnumerable<object> ResolveAll(Type t, params ResolverOverride[] resolverOverrides)
@@ -287,71 +266,38 @@
         }
 
         [MethodImpl(MethodImplOptions.NoInlining)]
-        private Func<object> CompilePlan(Type t, Dictionary<Type, BuildPlan> planTable, bool slowPath)
+        private Func<object> CompilePlan(Type t)
         {
-            var depTree = t.BuildDependencyTree(this.Dependencies);
-            IEnumerable<Type> types = depTree.Sort(node => node.Children).Select(x => x.Value);
-
-            var typeRegistrations = new List<TypeRegistration>();
-            foreach (var type in types)
-            {
-                var mappedType = this.GetMappingFor(type);
-                typeRegistrations.Add(new TypeRegistration(type, mappedType, this.GetLifetimeFor(mappedType), this.GetFactoryExpressionFor(mappedType)));
-            }
-
-            var codeGenerator = new ExpressionGenerator(this, typeRegistrations);
-            var eptree = codeGenerator.Generate();
-
-            if (this.dependencyTreeListener != null)
-            {
-                this.dependencyTreeListener(depTree);
-            }
-
-            eptree = this.buildPlanVisitors.Aggregate(eptree, (current, visitor) => visitor.Visitor(current, t, slowPath));
-
-            var compiledexpression = Expression.Lambda<Func<object>>(eptree, "Create_" + t, null).Compile();
-
-            BuildPlan plan;
-            if (planTable.TryGetValue(t, out plan))
-            {
-                plan.IsCompiled = true;
-                plan.Expression = compiledexpression;
-            }
-            else
-            {
-                planTable.Add(t, new BuildPlan { IsCompiled = true, Expression = compiledexpression });
-            }
-
-            return compiledexpression;
-        }
-
-        [MethodImpl(MethodImplOptions.NoInlining)]
-        private Func<object> SlowResolve(Type t, bool slow)
-        {
-            Func<object> returnVal;
+            Func<object> compiledexpression;
 
             lock (this.lockObj)
             {
-                if (slow)
-                {
-#if DEBUG
-                    if (Logger.IsEnabled())
-                    {
-                        Logger.SlowResolve(t.ToString());
-                    }
-#endif
+                var depTree = t.BuildDependencyTree(this.Dependencies);
+                IEnumerable<Type> types = depTree.Sort(node => node.Children).Select(x => x.Value);
 
-                    BuildPlan slowPlan;
-                    returnVal = this.slowBuildPlanTable.TryGetValue(t, out slowPlan) ? slowPlan.Expression : this.CompilePlan(t, this.slowBuildPlanTable, true);
-                }
-                else
+                var typeRegistrations = new List<TypeRegistration>();
+                foreach (var type in types)
                 {
-                    BuildPlan plan = this.buildPlanTable[t];
-                    returnVal = plan.IsCompiled ? plan.Expression : this.CompilePlan(t, this.buildPlanTable, false);
+                    var mappedType = this.GetMappingFor(type);
+                    typeRegistrations.Add(new TypeRegistration(type, mappedType, this.GetLifetimeFor(mappedType), this.GetFactoryExpressionFor(mappedType)));
                 }
+
+                var codeGenerator = new ExpressionGenerator(this, typeRegistrations);
+                var eptree = codeGenerator.Generate();
+
+                if (this.dependencyTreeListener != null)
+                {
+                    this.dependencyTreeListener(depTree);
+                }
+
+                eptree = this.buildPlanVisitors.Aggregate(eptree, (current, visitor) => visitor.Visitor(current, t));
+
+                compiledexpression = Expression.Lambda<Func<object>>(eptree, "Create_" + t, null).Compile();
+
+                this.buildPlanTable = this.buildPlanTable.AddOrUpdate(t, compiledexpression);
             }
-
-            return returnVal;
+            
+            return compiledexpression;
         }
 
         [MethodImpl(MethodImplOptions.NoInlining)]
@@ -454,7 +400,7 @@
                 return this.parentContainer.GetFactoryExpressionFor(type);
             }
 
-            return expression;
+            return null;
         }
     }
 }

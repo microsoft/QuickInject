@@ -5,6 +5,6 @@
 
     public interface IBuildPlanVisitor
     {
-        Expression Visitor(Expression expression, Type type, bool slowPath);
+        Expression Visitor(Expression expression, Type type);
     }
 }

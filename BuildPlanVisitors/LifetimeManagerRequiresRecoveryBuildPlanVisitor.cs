@@ -8,7 +8,7 @@
 
     public sealed class LifetimeManagerRequiresRecoveryBuildPlanVisitor : IBuildPlanVisitor
     {
-        public Expression Visitor(Expression expression, Type type, bool slowPath)
+        public Expression Visitor(Expression expression, Type type)
         {
             var visitor = new LifetimeManagerRequiresRecoveryExpressionVisitor();
             Expression modifiedExpression = visitor.Visit(expression);
@@ -17,9 +17,9 @@
 
         private sealed class LifetimeManagerRequiresRecoveryExpressionVisitor : ExpressionVisitor
         {
-            private static Type IRequiresRecoveryType = typeof(IRequiresRecovery);
+            private static readonly Type RequiresRecoveryType = typeof(IRequiresRecovery);
 
-            private static MethodInfo RecoverMethodInfo = IRequiresRecoveryType.GetRuntimeMethod("Recover", new Type[] { });
+            private static readonly MethodInfo RecoverMethodInfo = RequiresRecoveryType.GetRuntimeMethod("Recover", new Type[] { });
 
             protected override Expression VisitConditional(ConditionalExpression node)
             {
@@ -34,7 +34,7 @@
                         if (result != null && typeAs != null)
                         {
                             var methodCall = typeAs.Operand as MethodCallExpression;
-                            if (methodCall != null && methodCall.Object != null && methodCall.Object.Type.GetTypeInfo().ImplementedInterfaces.Any(t => t == IRequiresRecoveryType))
+                            if (methodCall != null && methodCall.Object != null && methodCall.Object.Type.GetTypeInfo().ImplementedInterfaces.Any(t => t == RequiresRecoveryType))
                             {
                                 return base.VisitConditional(Expression.Condition(node.Test, Expression.TryCatch(node.IfTrue, Expression.Catch(typeof(Exception), Expression.Block(Expression.Call(methodCall.Object, RecoverMethodInfo), Expression.Rethrow(), result))), node.IfFalse));
                             }

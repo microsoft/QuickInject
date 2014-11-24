@@ -8,7 +8,7 @@
 
     public sealed class TransientLifetimeRemovalBuildPlanVisitor : IBuildPlanVisitor
     {
-        public Expression Visitor(Expression expression, Type type, bool slowPath)
+        public Expression Visitor(Expression expression, Type type)
         {
             var deduper = new TransientLifetimeRemovalExpressionVisitor();
             var emptyExpressionVisitor = new EmptyExpressionVisitor();
@@ -27,10 +27,8 @@
                     {
                         continue;
                     }
-                    else
-                    {
-                        modifiedExpressionList.Add(expression);
-                    }
+
+                    modifiedExpressionList.Add(expression);
                 }
 
                 return base.VisitBlock(Expression.Block(node.Variables, modifiedExpressionList));
@@ -39,9 +37,9 @@
 
         private sealed class TransientLifetimeRemovalExpressionVisitor : ExpressionVisitor
         {
-            private static Type TransientLifetimeManagerType = typeof(TransientLifetimeManager);
+            private static readonly Type TransientLifetimeManagerType = typeof(TransientLifetimeManager);
 
-            private static MethodInfo SetValueMethodInfo = TransientLifetimeManagerType.GetRuntimeMethod("SetValue", new[] { typeof(object) });
+            private static readonly MethodInfo SetValueMethodInfo = TransientLifetimeManagerType.GetRuntimeMethod("SetValue", new[] { typeof(object) });
 
             protected override Expression VisitBlock(BlockExpression node)
             {
@@ -51,14 +49,12 @@
                     if (expression.NodeType == ExpressionType.Call)
                     {
                         var methodCall = (MethodCallExpression)expression;
-                        if (methodCall != null && methodCall.Object != null && methodCall.Object.Type == TransientLifetimeManagerType && methodCall.Method == SetValueMethodInfo)
+                        if (methodCall.Object != null && methodCall.Object.Type == TransientLifetimeManagerType && object.Equals(methodCall.Method, SetValueMethodInfo))
                         {
                             continue;
                         }
-                        else
-                        {
-                            modifiedExpressionList.Add(expression);
-                        }
+
+                        modifiedExpressionList.Add(expression);
                     }
                     else
                     {
@@ -83,7 +79,7 @@
                             var methodCall = typeAs.Operand as MethodCallExpression;
                             if (methodCall != null && methodCall.Object != null && methodCall.Object.Type == TransientLifetimeManagerType)
                             {
-                                return base.Visit(node.IfTrue);
+                                return this.Visit(node.IfTrue);
                             }
                         }
                     }

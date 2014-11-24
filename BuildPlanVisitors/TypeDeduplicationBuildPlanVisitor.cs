@@ -6,7 +6,7 @@
 
     public sealed class TypeDeduplicationBuildPlanVisitor : IBuildPlanVisitor
     {
-        public Expression Visitor(Expression expression, Type type, bool slowPath)
+        public Expression Visitor(Expression expression, Type type)
         {
             var deduper = new TypeDeduplicationExpressionVisitor();
             var emptyExpressionVisitor = new EmptyExpressionVisitor();
@@ -26,10 +26,8 @@
                     {
                         continue;
                     }
-                    else
-                    {
-                        modifiedExpressionList.Add(expression);
-                    }
+
+                    modifiedExpressionList.Add(expression);
                 }
 
                 return base.VisitBlock(Expression.Block(node.Variables, modifiedExpressionList));
@@ -38,9 +36,9 @@
 
         private sealed class TypeDeduplicationExpressionVisitor : ExpressionVisitor
         {
-            private Dictionary<Type, ParameterExpression> typeToParameterExpressionTable = new Dictionary<Type, ParameterExpression>();
+            private readonly Dictionary<Type, ParameterExpression> typeToParameterExpressionTable = new Dictionary<Type, ParameterExpression>();
 
-            private HashSet<ParameterExpression> parameters = new HashSet<ParameterExpression>();
+            private readonly HashSet<ParameterExpression> parameters = new HashSet<ParameterExpression>();
 
             private bool topMostBlockExpressionVisited;
 
