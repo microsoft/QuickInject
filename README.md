@@ -10,6 +10,7 @@ The goal is to improve performance for basic DI scenarios and provide a simple m
  * Compatible with Unity-style registrations
  * Re-use LifetimeManagers provided by Unity
  * Significantly improve resolution time
+ * Lock-free resolution
 
 ##### Supported Unity Features:
 
@@ -45,7 +46,7 @@ One of the most unique features of QuickInject is its **IBuildPlanVisitor**. Bef
 ```cs
 public class MyVisitor : IBuildPlanVisitor
 {
-    public Expression Visitor(Expression expression, Type type, bool slowPath)
+    public Expression Visitor(Expression expression, Type type)
     {
         // inspect and/or modify expression
         return expression; // always return expression
