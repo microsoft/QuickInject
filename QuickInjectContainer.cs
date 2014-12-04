@@ -30,9 +30,9 @@
 
         private readonly List<IBuildPlanVisitor> buildPlanVisitors = new List<IBuildPlanVisitor>();
 
-        private readonly ConcurrentDictionary<Type, PropertyInfo[]> propertyInfoTable = new ConcurrentDictionary<Type, PropertyInfo[]>();
-
         private readonly ExtensionImpl extensionImpl;
+
+        private ImmutableDictionary<Type, PropertyInfo[]> propertyInfoTable = ImmutableDictionary<Type, PropertyInfo[]>.Empty;
 
         private ImmutableDictionary<Type, Func<object>> buildPlanTable = ImmutableDictionary<Type, Func<object>>.Empty;
 
@@ -102,8 +102,8 @@
 
         public object BuildUp(Type t, object existing, string name, params ResolverOverride[] resolverOverrides)
         {
-            PropertyInfo[] propertyInfos;
-            if (this.propertyInfoTable.TryGetValue(t, out propertyInfos))
+            PropertyInfo[] propertyInfos = this.propertyInfoTable.GetValueOrDefault(t);
+            if (propertyInfos != null)
             {
                 foreach (PropertyInfo p in propertyInfos)
                 {
@@ -219,19 +219,20 @@
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public object Resolve(Type t, string name, params ResolverOverride[] resolverOverrides)
         {
+#if DEBUG
+            if (Logger.IsEnabled())
+            {
+                Logger.Resolve(t.ToString());
+            }
+#endif
+
             Func<object> plan = this.buildPlanTable.GetValueOrDefault(t);
             if (plan != null)
             {
-#if DEBUG
-                if (Logger.IsEnabled())
-                {
-                    Logger.Resolve(t.ToString());
-                }
-#endif
                 return plan();
             }
 
-            return this.CompilePlan(t)();
+            return this.CompileAndRunPlan(t);
         }
 
         public IEnumerable<object> ResolveAll(Type t, params ResolverOverride[] resolverOverrides)
@@ -266,7 +267,7 @@
         }
 
         [MethodImpl(MethodImplOptions.NoInlining)]
-        private Func<object> CompilePlan(Type t)
+        private object CompileAndRunPlan(Type t)
         {
             Func<object> compiledexpression;
 
@@ -297,7 +298,7 @@
                 this.buildPlanTable = this.buildPlanTable.AddOrUpdate(t, compiledexpression);
             }
             
-            return compiledexpression;
+            return compiledexpression();
         }
 
         [MethodImpl(MethodImplOptions.NoInlining)]
@@ -309,7 +310,7 @@
             if (policyList.PropertySelectorPolicy != null)
             {
                 var selectedProperties = policyList.PropertySelectorPolicy.SelectProperties(context, policyList).Select(x => x.Property).ToArray();
-                this.propertyInfoTable.TryAdd(t, selectedProperties);
+                this.propertyInfoTable = this.propertyInfoTable.AddOrUpdate(t, selectedProperties);
 
                 foreach (var selectedProperty in selectedProperties)
                 {
