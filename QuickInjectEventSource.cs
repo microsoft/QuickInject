@@ -21,5 +21,10 @@
         {
             this.WriteEvent(2, type);
         }
+
+        public void GetService(string type)
+        {
+            this.WriteEvent(3, type);
+        }
     }
 }

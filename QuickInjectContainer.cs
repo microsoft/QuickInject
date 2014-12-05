@@ -227,12 +227,7 @@
 #endif
 
             Func<object> plan = this.buildPlanTable.GetValueOrDefault(t);
-            if (plan != null)
-            {
-                return plan();
-            }
-
-            return this.CompileAndRunPlan(t);
+            return plan != null ? plan() : this.CompileAndRunPlan(t);
         }
 
         public IEnumerable<object> ResolveAll(Type t, params ResolverOverride[] resolverOverrides)
@@ -248,9 +243,18 @@
         {
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public object GetService(Type serviceType)
         {
-            return this.Resolve(serviceType, null, NoResolverOverrides);
+#if DEBUG
+            if (Logger.IsEnabled())
+            {
+                Logger.GetService(serviceType.ToString());
+            }
+#endif
+
+            Func<object> plan = this.buildPlanTable.GetValueOrDefault(serviceType);
+            return plan != null ? plan() : this.CompileAndRunPlan(serviceType);
         }
 
         public void AddBuildPlanVisitor(IBuildPlanVisitor visitor)
