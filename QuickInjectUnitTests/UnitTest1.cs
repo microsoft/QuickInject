@@ -689,7 +689,7 @@ namespace QuickInjectUnitTests
             var container = new QuickInjectContainer();
             container.AddBuildPlanVisitor(new LifetimeManagerRequiresRecoveryBuildPlanVisitor());
 
-            var child = container.CreateChildContainer();
+            var child = container.CreateChildContainer().CreateChildContainer();
 
             var foo = new Foo();
 
