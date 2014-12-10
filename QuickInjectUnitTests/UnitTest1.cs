@@ -666,6 +666,79 @@ namespace QuickInjectUnitTests
             Assert.IsTrue(lifetime.RecoverWasCalled);
         }
 
+        [TestMethod]
+        public void ReregistrationOfATypeUpdatesBuildCache()
+        {
+            var container = new QuickInjectContainer();
+            container.AddBuildPlanVisitor(new LifetimeManagerRequiresRecoveryBuildPlanVisitor());
+
+            var foo = new Foo();
+
+            container.RegisterType<Foo>(new ContainerControlledLifetimeManager(), new Microsoft.Practices.Unity.InjectionFactory(c => foo));
+            var cfoo = container.Resolve<ConsumesFoo>();
+            container.RegisterType<Foo>(new ContainerControlledLifetimeManager(), new Microsoft.Practices.Unity.InjectionFactory(c => new Foo()));
+
+            var cfoo2 = container.Resolve<ConsumesFoo>();
+
+            Assert.AreNotSame(cfoo.Foo, cfoo2.Foo);
+        }
+
+        [TestMethod]
+        public void ReregistrationOfATypeUpdatesBuildCacheInChildContainer()
+        {
+            var container = new QuickInjectContainer();
+            container.AddBuildPlanVisitor(new LifetimeManagerRequiresRecoveryBuildPlanVisitor());
+
+            var child = container.CreateChildContainer();
+
+            var foo = new Foo();
+
+            container.RegisterType<Foo>(new ContainerControlledLifetimeManager(), new Microsoft.Practices.Unity.InjectionFactory(c => foo));
+            var cfoo = child.Resolve<ConsumesFoo>();
+            container.RegisterType<Foo>(new ContainerControlledLifetimeManager(), new Microsoft.Practices.Unity.InjectionFactory(c => new Foo()));
+
+            var cfoo2 = child.Resolve<ConsumesFoo>();
+
+            Assert.AreNotSame(cfoo.Foo, cfoo2.Foo);
+        }
+
+        [TestMethod]
+        public void RegisterTypeAfterRegisterInstanceDoesNotReusePreviousInstance()
+        {
+            var container = new QuickInjectContainer();
+
+            var foo = new Foo();
+            var foo2 = new Foo();
+            container.RegisterInstance<IFoo>(foo);
+
+            var returnedInstance = container.Resolve<IFoo>();
+
+            var lifetime = new ContainerControlledLifetimeManager();
+            lifetime.SetValue(foo2);
+
+            container.RegisterType<IFoo>(lifetime);
+            var returnedInstance2 = container.Resolve<IFoo>();
+
+            Assert.AreNotSame(returnedInstance, returnedInstance2);
+        }
+
+        [TestMethod]
+        [ExpectedException(typeof(ArgumentException))]
+        public void RegisterTypeAfterRegisterInstanceDoesNotReusePreviousInstanceAndThrowsArgumentException()
+        {
+            var container = new QuickInjectContainer();
+
+            var foo = new Foo();
+            var foo2 = new Foo();
+            container.RegisterInstance<IFoo>(foo);
+
+            var returnedInstance = container.Resolve<IFoo>();
+
+            var lifetime = new ContainerControlledLifetimeManager();
+
+            container.RegisterType<IFoo>(lifetime);
+            var returnedInstance2 = container.Resolve<IFoo>();
+        }
 
         public class ThrowRecordingSynchronizedLifetimeManager : LifetimeManager, IRequiresRecovery
         {
@@ -697,6 +770,15 @@ namespace QuickInjectUnitTests
         public class SuperFoo : Foo
         {
 
+        }
+        public class ConsumesFoo
+        {
+            public ConsumesFoo(Foo foo)
+            {
+                this.Foo = foo;
+            }
+
+            public Foo Foo { get; private set; }
         }
 
         public class Foo : IFoo, IBar

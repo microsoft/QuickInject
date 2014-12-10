@@ -1,7 +1,6 @@
 ﻿namespace QuickInject
 {
     using System;
-    using System.Collections.Concurrent;
     using System.Collections.Generic;
     using System.Linq;
     using System.Linq.Expressions;
@@ -31,6 +30,8 @@
         private readonly List<IBuildPlanVisitor> buildPlanVisitors = new List<IBuildPlanVisitor>();
 
         private readonly ExtensionImpl extensionImpl;
+
+        private readonly List<QuickInjectContainer> children = new List<QuickInjectContainer>();
 
         private ImmutableDictionary<Type, PropertyInfo[]> propertyInfoTable = ImmutableDictionary<Type, PropertyInfo[]>.Empty;
 
@@ -128,6 +129,7 @@
             var child = new QuickInjectContainer(this);
             var childContext = new ExtensionImpl(child, new DummyPolicyList());
             this.ChildContainerCreated(this, new ChildContainerCreatedEventArgs(childContext));
+            this.children.Add(child);
             return child;
         }
 
@@ -154,7 +156,7 @@
             {
                 lifetime.SetValue(instance);
                 this.lifetimeTable.AddOrUpdate(t, lifetime);
-                this.factoryExpressionTable.AddOrUpdate(t, Expression.Constant(instance));
+                this.ClearBuildPlans();
             }
 
             return this;
@@ -206,6 +208,8 @@
                 {
                     this.factoryExpressionTable.AddOrUpdate(to, injectionMembers[0].GenExpression(to, this));
                 }
+
+                this.ClearBuildPlans();
             }
 
             return this;
@@ -262,12 +266,31 @@
             lock (this.lockObj)
             {
                 this.buildPlanVisitors.Add(visitor);
+                this.ClearBuildPlans();
             }
         }
 
         public void RegisterDependencyTreeListener(Action<ITreeNode<Type>> action)
         {
             this.dependencyTreeListener = action;
+        }
+
+        private void ClearBuildPlans()
+        {
+            this.buildPlanTable = ImmutableDictionary<Type, Func<object>>.Empty;
+            Stack<QuickInjectContainer> childrenStack = new Stack<QuickInjectContainer>();
+            childrenStack.Push(this);
+
+            while (childrenStack.Count != 0)
+            {
+                var curr = childrenStack.Pop();
+                curr.buildPlanTable = ImmutableDictionary<Type, Func<object>>.Empty;
+
+                foreach (var child in curr.children)
+                {
+                    childrenStack.Push(child);
+                }
+            }
         }
 
         [MethodImpl(MethodImplOptions.NoInlining)]
