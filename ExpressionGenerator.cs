@@ -77,7 +77,7 @@
             }
 
             /* Func<T>, similar to factory methods, but we generate the Func expression as well */
-            if (registration.RegistrationType.GetTypeInfo().IsGenericType && registration.RegistrationType.GetGenericTypeDefinition() == typeof(Func<>))
+            if (registration.RegistrationType.GetTypeInfo().IsGenericType && registration.RegistrationType.GetGenericTypeDefinition().GetTypeInfo().BaseType == typeof(MulticastDelegate))
             {
                 return this.GenerateFuncTExpression(this.container, variable, registration);
             }

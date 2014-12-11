@@ -371,7 +371,7 @@
 
             // container.RegisterType<IFoo>(new LifetimeManagerWillProvideValue())
             // Special Case: Func<T> that is not registered
-            if ((mappedType.GetTypeInfo().IsGenericType && mappedType.GetGenericTypeDefinition() == typeof(Func<>) || mappedType.GetTypeInfo().IsInterface || mappedType.GetTypeInfo().IsAbstract))
+            if ((mappedType.GetTypeInfo().IsGenericType && mappedType.GetGenericTypeDefinition().GetTypeInfo().BaseType == typeof(MulticastDelegate) || mappedType.GetTypeInfo().IsInterface || mappedType.GetTypeInfo().IsAbstract))
             {
                 return Enumerable.Empty<Type>();
             }
