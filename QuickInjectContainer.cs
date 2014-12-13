@@ -156,6 +156,7 @@
             {
                 lifetime.SetValue(instance);
                 this.lifetimeTable.AddOrUpdate(t, lifetime);
+                this.factoryExpressionTable.AddOrUpdate(t, Expression.Constant(instance));
                 this.ClearBuildPlans();
             }
 
