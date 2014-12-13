@@ -11,6 +11,20 @@
     {
         private static readonly FieldInfo InjectionFactoryFieldInfo = typeof(Microsoft.Practices.Unity.InjectionFactory).GetTypeInfo().GetDeclaredField("factoryFunc");
 
+        public static void AddOrPush<K, V>(this Dictionary<K, Stack<V>> instance, K key, V value)
+        {
+            if (instance.ContainsKey(key))
+            {
+                instance[key].Push(value);
+            }
+            else
+            {
+                var s = new Stack<V>();
+                s.Push(value);
+                instance.Add(key, s);
+            }
+        }
+
         public static void AddOrUpdate<K, V>(this Dictionary<K, V> instance, K key, V value)
         {
             if (instance.ContainsKey(key))

@@ -740,6 +740,45 @@ namespace QuickInjectUnitTests
             var returnedInstance2 = container.Resolve<IFoo>();
         }
 
+        [TestMethod]
+        public void GeneratedCodeOnlyComputesNeededDependencies()
+        {
+            var a = new QuickInjectContainer();
+            a.RegisterType<XA>(new TransientLifetimeManager());
+            a.RegisterType<XB>(new ContainerControlledLifetimeManager());
+            a.RegisterType<XC>(new TransientLifetimeManager());
+            a.Resolve<XA>();
+            a.Resolve<XA>();
+
+            Assert.IsTrue(XC.StaticVariable == 1);
+        }
+
+        private class XA
+        {
+            public XA(XB b)
+            {
+
+            }
+        }
+
+        private class XB
+        {
+            public XB(XC c)
+            {
+
+            }
+        }
+
+        private class XC
+        {
+            public static int StaticVariable = 0;
+
+            public XC()
+            {
+                StaticVariable++;
+            }
+        }
+
         public class ThrowRecordingSynchronizedLifetimeManager : LifetimeManager, IRequiresRecovery
         {
             private object store;

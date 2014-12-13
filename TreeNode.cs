@@ -4,7 +4,6 @@
     using System.Collections;
     using System.Collections.Generic;
     using System.Collections.ObjectModel;
-    using System.Linq;
 
     internal sealed class TreeNode<T> : ITreeNode<T>
     {
@@ -55,16 +54,23 @@
             return this.children.Remove(node);
         }
 
-        /// <summary>
-        /// Traverses the tree using depth first
-        /// </summary>
-        public void Traverse(Action<T> action)
+        public void PreOrderTraverse(Action<T> action)
         {
             action(this.Value);
             foreach (var child in this.children)
             {
-                child.Traverse(action);
+                child.PreOrderTraverse(action);
             }
+        }
+
+        public void PostOrderTraverse(Action<T> action)
+        {
+            foreach (var child in this.children)
+            {
+                child.PostOrderTraverse(action);
+            }
+
+            action(this.Value);
         }
 
         public IEnumerator<ITreeNode<T>> GetEnumerator()

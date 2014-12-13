@@ -13,7 +13,7 @@
 
         private static readonly ResolverOverride[] EmptyResolverOverridesArray = { };
 
-        private readonly List<TypeRegistration> registrations;
+        private readonly ITreeNode<TypeRegistration> registrations;
 
         private readonly IUnityContainer container;
 
@@ -21,51 +21,36 @@
 
         private readonly Dictionary<Type, Stack<ParameterExpression>> parameterExpressionsByType = new Dictionary<Type, Stack<ParameterExpression>>();
 
-        public ExpressionGenerator(IUnityContainer container, List<TypeRegistration> registrations)
+        private readonly Stack<Expression> codeExpressions = new Stack<Expression>(); 
+
+        public ExpressionGenerator(IUnityContainer container, ITreeNode<TypeRegistration> registrations)
         {
             this.container = container;
             this.registrations = registrations;
-            this.SetupLocalVariableExpressions();
         }
 
         public Expression Generate()
         {
-            var body = new List<Expression>();
+            this.registrations.PostOrderTraverse(this.VisitCodeGeneration);
+            return Expression.Block(this.parameterExpressions, this.codeExpressions.Pop());
+        }
 
-            for (int i = 0; i < this.registrations.Count; ++i)
-            {
-                ParameterExpression variable = this.parameterExpressions[i];
-                TypeRegistration registration = this.registrations[i];
-                Type type = registration.RegistrationType;
-                Type lifetimeType = registration.LifetimeManager.GetType();
+        private void VisitCodeGeneration(TypeRegistration registration)
+        {
+            Type type = registration.RegistrationType;
+            Type lifetimeType = registration.LifetimeManager.GetType();
+            ParameterExpression variable = Expression.Variable(type);
 
-                if (this.parameterExpressionsByType.ContainsKey(type))
-                {
-                    this.parameterExpressionsByType[type].Push(variable);
-                }
-                else
-                {
-                    var s = new Stack<ParameterExpression>();
-                    s.Push(variable);
-                    this.parameterExpressionsByType.Add(type, s);
-                }
+            this.parameterExpressionsByType.AddOrPush(type, variable);
+            this.parameterExpressions.Add(variable);
 
-                var coreFetchExpression = this.GenerateFetchExpression(variable, registration);
-                var lifetimeLookupCall = Expression.Call(Expression.Constant(registration.LifetimeManager, lifetimeType), lifetimeType.GetRuntimeMethods().Single(x => x.Name == "GetValue"));
-                var fetchExpression = Expression.Block(coreFetchExpression, this.GenerateSetValueCall(variable, registration), variable);
-                var equalsExpression = Expression.Equal(Expression.Assign(variable, Expression.TypeAs(lifetimeLookupCall, registration.RegistrationType)), Expression.Constant(null));
+            var coreFetchExpression = this.GenerateFetchExpression(variable, registration);
+            var lifetimeLookupCall = Expression.Call(Expression.Constant(registration.LifetimeManager, lifetimeType), lifetimeType.GetRuntimeMethods().Single(x => x.Name == "GetValue"));
+            var fetchExpression = Expression.Block(coreFetchExpression, this.GenerateSetValueCall(variable, registration), variable);
+            var equalsExpression = Expression.Equal(Expression.Assign(variable, Expression.TypeAs(lifetimeLookupCall, registration.RegistrationType)), Expression.Constant(null));
+            var conditionalExpression = Expression.Condition(equalsExpression, fetchExpression, variable);
 
-                // last expression is special
-                if (this.registrations.Count - 1 == i)
-                {
-                    body.Add(fetchExpression);
-                    return Expression.Block(this.parameterExpressions, Expression.Condition(equalsExpression, Expression.Block(body), variable));
-                }
-
-                body.Add(Expression.Condition(equalsExpression, fetchExpression, variable));
-            }
-
-            return Expression.Block(this.parameterExpressions, body);
+            this.codeExpressions.Push(conditionalExpression);
         }
 
         private Expression GenerateFetchExpression(ParameterExpression variable, TypeRegistration registration)
@@ -112,7 +97,17 @@
                 return Expression.Assign(variable, Expression.New(constructor));
             }
 
-            return Expression.Assign(variable, Expression.New(constructor, ctorParams.Select(ctorParam => this.parameterExpressionsByType[ctorParam.ParameterType].Pop())));
+            List<Expression> body = new List<Expression>();
+            List<ParameterExpression> variables = new List<ParameterExpression>();
+            foreach (var ctorParam in ctorParams)
+            {
+                variables.Add(this.parameterExpressionsByType[ctorParam.ParameterType].Pop());
+                body.Add(this.codeExpressions.Pop());
+            }
+
+            body.Add(Expression.Assign(variable, Expression.New(constructor, variables)));
+
+            return Expression.Block(body);
         }
 
         private Expression GenerateFactoryExpression(ParameterExpression variable, TypeRegistration registration)
@@ -172,17 +167,6 @@
         {
             LifetimeManager lifetimeManager = registration.LifetimeManager;
             return Expression.Call(Expression.Constant(lifetimeManager), lifetimeManager.GetType().GetRuntimeMethods().Single(x => x.Name == "SetValue"), new Expression[] { variable });
-        }
-
-        private void SetupLocalVariableExpressions()
-        {
-            foreach (TypeRegistration registration in this.registrations)
-            {
-                Type type = registration.RegistrationType;
-
-                ParameterExpression localVariable = Expression.Variable(type);
-                this.parameterExpressions.Add(localVariable);
-            }
         }
     }
 }

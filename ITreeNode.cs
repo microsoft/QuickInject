@@ -17,6 +17,8 @@
 
         bool RemoveChild(ITreeNode<T> node);
 
-        void Traverse(Action<T> action);
+        void PreOrderTraverse(Action<T> action);
+
+        void PostOrderTraverse(Action<T> action);
     }
 }

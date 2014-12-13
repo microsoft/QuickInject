@@ -301,14 +301,10 @@
             lock (this.lockObj)
             {
                 var depTree = t.BuildDependencyTree(this.Dependencies);
-                IEnumerable<Type> types = depTree.Sort(node => node.Children).Select(x => x.Value);
+                var typeRegistrationTree = new TypeRegistrationTree(this);
+                depTree.PreOrderTraverse(typeRegistrationTree.BuildRegistration);
 
-                var typeRegistrations = new List<TypeRegistration>();
-                foreach (var type in types)
-                {
-                    var mappedType = this.GetMappingFor(type);
-                    typeRegistrations.Add(new TypeRegistration(type, mappedType, this.GetLifetimeFor(mappedType), this.GetFactoryExpressionFor(mappedType)));
-                }
+                var typeRegistrations = typeRegistrationTree.Parent;
 
                 var codeGenerator = new ExpressionGenerator(this, typeRegistrations);
                 var eptree = codeGenerator.Generate();
@@ -429,6 +425,35 @@
             }
 
             return null;
+        }
+
+        private sealed class TypeRegistrationTree
+        {
+            private readonly QuickInjectContainer container;
+
+            private ITreeNode<TypeRegistration> typeRegistrations;
+
+            public TypeRegistrationTree(QuickInjectContainer container)
+            {
+                this.container = container;
+            }
+
+            public ITreeNode<TypeRegistration> Parent { get; private set; }
+
+            public void BuildRegistration(Type type)
+            {
+                var mappedType = this.container.GetMappingFor(type);
+                var typeRegistration = new TypeRegistration(type, mappedType, this.container.GetLifetimeFor(mappedType), this.container.GetFactoryExpressionFor(mappedType));
+                if (this.Parent == null)
+                {
+                    this.typeRegistrations = new TreeNode<TypeRegistration>(typeRegistration);
+                    this.Parent = this.typeRegistrations;
+                }
+                else
+                {
+                    this.typeRegistrations = this.typeRegistrations.AddChild(typeRegistration);
+                }
+            }
         }
     }
 }
