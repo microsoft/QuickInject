@@ -184,7 +184,7 @@ namespace QuickInjectUnitTests
     {
         public C(IA a, IB b)
         {
-            
+
         }
     }
 
@@ -595,7 +595,7 @@ namespace QuickInjectUnitTests
         {
             var container = new QuickInjectContainer();
             container.AddBuildPlanVisitor(new TransientLifetimeRemovalBuildPlanVisitor());
-            
+
             container.RegisterType<IFoo, Foo>(new ContainerControlledLifetimeManager(), new Microsoft.Practices.Unity.InjectionFactory(c => new Foo()));
             container.RegisterType<IBar, Foo>(new ContainerControlledLifetimeManager(), new Microsoft.Practices.Unity.InjectionFactory(c => new Foo()));
 
@@ -726,13 +726,84 @@ namespace QuickInjectUnitTests
         public void GeneratedCodeOnlyComputesNeededDependencies()
         {
             var a = new QuickInjectContainer();
+            a.RegisterType<Foo>(new ParameterizedLambdaExpressionInjectionFactory<FooProvider, Foo>(x => x.ProvideFoo()));
+            a.RegisterType<string>(new ParameterizedLambdaExpressionInjectionFactory<VOS, string>((x) => x.GROB("foo")));
+            a.RegisterType<Mything>(new ParameterizedLambdaExpressionInjectionFactory<VOS, Foo, Mything>((x, y) => x.GROB("Foo", "bar")));
+            a.RegisterType<FooBar>(new ParameterizedInjectionFactory<VOS, Foo, FooBar>(Func));
             a.RegisterType<XA>(new TransientLifetimeManager());
             a.RegisterType<XB>(new ContainerControlledLifetimeManager());
             a.RegisterType<XC>(new TransientLifetimeManager());
-            a.Resolve<XA>();
-            a.Resolve<XA>();
+
+            a.AddBuildPlanVisitor(new LifetimeManagerRequiresRecoveryBuildPlanVisitor());
+            a.AddBuildPlanVisitor(new TransientLifetimeRemovalBuildPlanVisitor());
+
+            var ss = a.Resolve<GuidString>();
 
             Assert.IsTrue(XC.StaticVariable == 1);
+        }
+
+        private FooBar Func(VOS vos, Foo foo)
+        {
+            return new FooBar(foo);
+        }
+
+        private class FooBar
+        {
+            public FooBar(Foo f)
+            {
+
+            }
+
+        }
+
+        private class GuidString
+        {
+            public GuidString(string s, Mything f, FooBar ff)
+            {
+
+            }
+        }
+
+        private class Mything
+        {
+            public Mything()
+            {
+
+            }
+        }
+
+        private class FooProvider
+        {
+            public Foo ProvideFoo()
+            {
+                return new Foo();
+            }
+        }
+
+        private class VOSC
+        {
+            public VOSC(XA a, XB b)
+            {
+
+            }
+        }
+
+        private class VOS
+        {
+            public VOS(VOSC c, Foo f)
+            {
+
+            }
+
+            public string GROB(string f)
+            {
+                return f;
+            }
+
+            public Mything GROB(string f, string g)
+            {
+                return new Mything();
+            }
         }
 
         private class XA
@@ -792,6 +863,7 @@ namespace QuickInjectUnitTests
         {
 
         }
+
         public class ConsumesFoo
         {
             public ConsumesFoo(Foo foo)
