@@ -723,24 +723,6 @@ namespace QuickInjectUnitTests
         }
 
         [TestMethod]
-        [ExpectedException(typeof(ArgumentException))]
-        public void RegisterTypeAfterRegisterInstanceDoesNotReusePreviousInstanceAndThrowsArgumentException()
-        {
-            var container = new QuickInjectContainer();
-
-            var foo = new Foo();
-            var foo2 = new Foo();
-            container.RegisterInstance<IFoo>(foo);
-
-            var returnedInstance = container.Resolve<IFoo>();
-
-            var lifetime = new ContainerControlledLifetimeManager();
-
-            container.RegisterType<IFoo>(lifetime);
-            var returnedInstance2 = container.Resolve<IFoo>();
-        }
-
-        [TestMethod]
         public void GeneratedCodeOnlyComputesNeededDependencies()
         {
             var a = new QuickInjectContainer();

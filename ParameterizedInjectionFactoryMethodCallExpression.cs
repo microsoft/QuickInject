@@ -29,17 +29,22 @@
             }
         }
 
-        public Expression Resolve(Dictionary<Type, Stack<ParameterExpression>> dataProvider)
+        public Expression Resolve(Type resolveType, ParameterExpression output, Stack<Expression> dependentExpressionStack, Dictionary<Type, Stack<ParameterExpression>> dataProvider)
         {
+            var expressions = new List<Expression>();
+
             var parameters = this.methodInfo.GetParameters();
             foreach (var parameter in parameters)
             {
                 this.parameterExpressions.Add(dataProvider[parameter.ParameterType].Peek());
+                expressions.Add(dependentExpressionStack.Pop());
             }
 
-            return this.instance != null
+            expressions.Add(Expression.Assign(output, Expression.TypeAs(this.instance != null
                        ? Expression.Call(Expression.Constant(this.instance), this.methodInfo, this.parameterExpressions)
-                       : Expression.Call(this.methodInfo, this.parameterExpressions);
+                       : Expression.Call(this.methodInfo, this.parameterExpressions), resolveType)));
+
+            return Expression.Block(expressions);
         }
     }
 }

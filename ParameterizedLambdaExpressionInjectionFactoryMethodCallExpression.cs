@@ -22,9 +22,17 @@
             }
         }
 
-        public Expression Resolve(Dictionary<Type, Stack<ParameterExpression>> dataProvider)
+        public Expression Resolve(Type resolveType, ParameterExpression output, Stack<Expression> dependentExpressionStack, Dictionary<Type, Stack<ParameterExpression>> dataProvider)
         {
-            return new ParameterVisitor(dataProvider).Visit(this.expression.Body);
+            var expressions = new List<Expression>();
+            for (int i = 0; i < this.DependentTypes.Count(); ++i)
+            {
+                expressions.Add(dependentExpressionStack.Pop());
+            }
+
+            expressions.Add(Expression.Assign(output, Expression.TypeAs(new ParameterVisitor(dataProvider).Visit(this.expression.Body), resolveType)));
+
+            return Expression.Block(expressions);
         }
 
         private sealed class ParameterVisitor : ExpressionVisitor

@@ -21,7 +21,7 @@
 
         private readonly Dictionary<Type, Stack<ParameterExpression>> parameterExpressionsByType = new Dictionary<Type, Stack<ParameterExpression>>();
 
-        private readonly Stack<Expression> codeExpressions = new Stack<Expression>(); 
+        private readonly Stack<Expression> codeExpressions = new Stack<Expression>();
 
         public ExpressionGenerator(IUnityContainer container, ITreeNode<TypeRegistration> registrations)
         {
@@ -41,16 +41,26 @@
             Type lifetimeType = registration.LifetimeManager.GetType();
             ParameterExpression variable = Expression.Variable(type);
 
-            this.parameterExpressionsByType.AddOrPush(type, variable);
+            if (this.parameterExpressionsByType.ContainsKey(type))
+            {
+                this.parameterExpressionsByType[type].Push(variable);
+            }
+            else
+            {
+                var s = new Stack<ParameterExpression>();
+                s.Push(variable);
+                this.parameterExpressionsByType.Add(type, s);
+            }
+
             this.parameterExpressions.Add(variable);
 
             var coreFetchExpression = this.GenerateFetchExpression(variable, registration);
             var lifetimeLookupCall = Expression.Call(Expression.Constant(registration.LifetimeManager, lifetimeType), lifetimeType.GetRuntimeMethods().Single(x => x.Name == "GetValue"));
             var fetchExpression = Expression.Block(coreFetchExpression, this.GenerateSetValueCall(variable, registration), variable);
             var equalsExpression = Expression.Equal(Expression.Assign(variable, Expression.TypeAs(lifetimeLookupCall, registration.RegistrationType)), Expression.Constant(null));
-            var conditionalExpression = Expression.Condition(equalsExpression, fetchExpression, variable);
+            var conditionsExpression = Expression.Condition(equalsExpression, fetchExpression, variable);
 
-            this.codeExpressions.Push(conditionalExpression);
+            this.codeExpressions.Push(conditionsExpression);
         }
 
         private Expression GenerateFetchExpression(ParameterExpression variable, TypeRegistration registration)
@@ -62,7 +72,7 @@
             }
 
             /* Func<T>, similar to factory methods, but we generate the Func expression as well */
-            if (registration.RegistrationType.GetTypeInfo().IsGenericType && registration.RegistrationType.GetGenericTypeDefinition().GetTypeInfo().BaseType == typeof(MulticastDelegate))
+            if (registration.RegistrationType.GetTypeInfo().IsGenericType && registration.RegistrationType.GetGenericTypeDefinition() == typeof(Func<>))
             {
                 return this.GenerateFuncTExpression(this.container, variable, registration);
             }
@@ -97,8 +107,8 @@
                 return Expression.Assign(variable, Expression.New(constructor));
             }
 
-            List<Expression> body = new List<Expression>();
-            List<ParameterExpression> variables = new List<ParameterExpression>();
+            var body = new List<Expression>();
+            var variables = new List<ParameterExpression>();
             foreach (var ctorParam in ctorParams)
             {
                 variables.Add(this.parameterExpressionsByType[ctorParam.ParameterType].Pop());
@@ -112,39 +122,22 @@
 
         private Expression GenerateFactoryExpression(ParameterExpression variable, TypeRegistration registration)
         {
-            Expression resolvedExpression;
             var factoryType = registration.Factory.GetType();
+            Expression resolvedExpression = factoryType == typeof(InjectionFactoryMethodCallExpression) ? this.GenerateInjectionFactoryMethodCallExpression(registration) : registration.Factory;
 
             if (factoryType == typeof(ParameterizedInjectionFactoryMethodCallExpression))
             {
-                resolvedExpression = this.GenerateParameterizedInjectionFactoryMethodCallExpression(registration);
+                var parameterizedFactory = (ParameterizedInjectionFactoryMethodCallExpression)registration.Factory;
+                return parameterizedFactory.Resolve(registration.RegistrationType, variable, this.codeExpressions, this.parameterExpressionsByType);
             }
-            else if (factoryType == typeof(ParameterizedLambdaExpressionInjectionFactoryMethodCallExpression))
+
+            if (factoryType == typeof(ParameterizedLambdaExpressionInjectionFactoryMethodCallExpression))
             {
-                resolvedExpression = this.GenerateParameterizedLambdaExpressionInjectionFactoryMethodCallExpression(registration);
-            }
-            else if (factoryType == typeof(InjectionFactoryMethodCallExpression))
-            {
-                resolvedExpression = this.GenerateInjectionFactoryMethodCallExpression(registration);
-            }
-            else
-            {
-                resolvedExpression = registration.Factory;
+                var parameterizedLambdaFactory = (ParameterizedLambdaExpressionInjectionFactoryMethodCallExpression)registration.Factory;
+                return parameterizedLambdaFactory.Resolve(registration.RegistrationType, variable, this.codeExpressions, this.parameterExpressionsByType);
             }
 
             return Expression.Assign(variable, Expression.TypeAs(resolvedExpression, registration.RegistrationType));
-        }
-
-        private Expression GenerateParameterizedLambdaExpressionInjectionFactoryMethodCallExpression(TypeRegistration registration)
-        {
-            var parameterizedFactory = (ParameterizedLambdaExpressionInjectionFactoryMethodCallExpression)registration.Factory;
-            return parameterizedFactory.Resolve(this.parameterExpressionsByType);
-        }
-
-        private Expression GenerateParameterizedInjectionFactoryMethodCallExpression(TypeRegistration registration)
-        {
-            var parameterizedFactory = (ParameterizedInjectionFactoryMethodCallExpression)registration.Factory;
-            return parameterizedFactory.Resolve(this.parameterExpressionsByType);
         }
 
         private Expression GenerateInjectionFactoryMethodCallExpression(TypeRegistration registration)

@@ -35,10 +35,10 @@
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="BuildPlanVisitors\EmptyBlockExpressionRemovalBuildPlanVisitor.cs" />
     <Compile Include="BuildPlanVisitors\GeneratedCodeTextWriterBuildPlanVisitor.cs" />
     <Compile Include="BuildPlanVisitors\LifetimeManagerRequiresRecoveryBuildPlanVisitor.cs" />
     <Compile Include="BuildPlanVisitors\TransientLifetimeRemovalBuildPlanVisitor.cs" />
-    <Compile Include="BuildPlanVisitors\TypeDeduplicationBuildPlanVisitor.cs" />
     <Compile Include="CyclicDependencyException.cs" />
     <Compile Include="ImmutableDictionary.cs" />
     <Compile Include="QuickInjectContainer.cs" />

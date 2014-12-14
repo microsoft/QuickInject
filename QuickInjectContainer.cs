@@ -6,6 +6,7 @@
     using System.Linq.Expressions;
     using System.Reflection;
     using System.Runtime.CompilerServices;
+    using BuildPlanVisitors;
     using Microsoft.Practices.ObjectBuilder2;
     using Microsoft.Practices.Unity;
 
@@ -18,6 +19,8 @@
         private static readonly QuickInjectEventSource Logger = new QuickInjectEventSource();
 
         private readonly object lockObj = new object();
+
+        private static readonly EmptyBlockExpressionRemovalBuildPlanVisitor EmptyBlockExpressionRemovalVisitor = new EmptyBlockExpressionRemovalBuildPlanVisitor();
 
         private readonly QuickInjectContainer parentContainer;
 
@@ -315,7 +318,8 @@
                     this.dependencyTreeListener(depTree);
                 }
 
-                eptree = this.buildPlanVisitors.Aggregate(eptree, (current, visitor) => visitor.Visitor(current, t));
+                eptree = EmptyBlockExpressionRemovalVisitor.Visitor(eptree, t); // remove extra cruft
+                eptree = this.buildPlanVisitors.Aggregate(eptree, (current, visitor) => EmptyBlockExpressionRemovalVisitor.Visitor(visitor.Visitor(current, t), t)); // remove extra cruft after each visitor
 
                 compiledexpression = Expression.Lambda<Func<object>>(eptree, "Create_" + t, null).Compile();
 
