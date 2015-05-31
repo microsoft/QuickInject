@@ -129,10 +129,19 @@
 
         public IUnityContainer CreateChildContainer()
         {
-            var child = new QuickInjectContainer(this);
-            var childContext = new ExtensionImpl(child, new DummyPolicyList());
+            QuickInjectContainer child;
+            ExtensionImpl childContext;
+
+            lock (this.lockObj)
+            {
+                child = new QuickInjectContainer(this);
+                childContext = new ExtensionImpl(child, new DummyPolicyList());
+                this.children.Add(child);
+            }
+
+            // Must happen outside the lock to avoid deadlock between callers
             this.ChildContainerCreated(this, new ChildContainerCreatedEventArgs(childContext));
-            this.children.Add(child);
+
             return child;
         }
 
@@ -304,28 +313,32 @@
 
             lock (this.lockObj)
             {
-                var depTree = t.BuildDependencyTree(this.Dependencies);
-                var typeRegistrationTree = new TypeRegistrationTree(this);
-                depTree.PreOrderTraverse(typeRegistrationTree.BuildRegistration);
-
-                var typeRegistrations = typeRegistrationTree.Parent;
-
-                var codeGenerator = new ExpressionGenerator(this, typeRegistrations);
-                var eptree = codeGenerator.Generate();
-
-                if (this.dependencyTreeListener != null)
+                compiledexpression = this.buildPlanTable.GetValueOrDefault(t);
+                if (compiledexpression == null)
                 {
-                    this.dependencyTreeListener(depTree);
+                    var depTree = t.BuildDependencyTree(this.Dependencies);
+                    var typeRegistrationTree = new TypeRegistrationTree(this);
+                    depTree.PreOrderTraverse(typeRegistrationTree.BuildRegistration);
+
+                    var typeRegistrations = typeRegistrationTree.Parent;
+
+                    var codeGenerator = new ExpressionGenerator(this, typeRegistrations);
+                    var eptree = codeGenerator.Generate();
+
+                    if (this.dependencyTreeListener != null)
+                    {
+                        this.dependencyTreeListener(depTree);
+                    }
+
+                    eptree = EmptyBlockExpressionRemovalVisitor.Visitor(eptree, t); // remove extra cruft
+                    eptree = this.buildPlanVisitors.Aggregate(eptree, (current, visitor) => EmptyBlockExpressionRemovalVisitor.Visitor(visitor.Visitor(current, t), t)); // remove extra cruft after each visitor
+
+                    compiledexpression = Expression.Lambda<Func<object>>(eptree, "Create_" + t, null).Compile();
+
+                    this.buildPlanTable = this.buildPlanTable.AddOrUpdate(t, compiledexpression);
                 }
-
-                eptree = EmptyBlockExpressionRemovalVisitor.Visitor(eptree, t); // remove extra cruft
-                eptree = this.buildPlanVisitors.Aggregate(eptree, (current, visitor) => EmptyBlockExpressionRemovalVisitor.Visitor(visitor.Visitor(current, t), t)); // remove extra cruft after each visitor
-
-                compiledexpression = Expression.Lambda<Func<object>>(eptree, "Create_" + t, null).Compile();
-
-                this.buildPlanTable = this.buildPlanTable.AddOrUpdate(t, compiledexpression);
             }
-            
+
             return compiledexpression();
         }
 
