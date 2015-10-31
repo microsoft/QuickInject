@@ -1,7 +1,7 @@
 QuickInject
 ===========
 
-QuickInject is a Unity 4.0 based IoC container that aims to give the Unity container a performance advantage in basic scenarios.
+QuickInject is a Unity 3.5 based IoC container that aims to give the Unity container a performance advantage in basic scenarios.
 
 The goal is to improve performance for basic DI scenarios and provide a simple mechanism to improve optimizations. QuickInject is different from other dependency injection containers in that it has some hook points that allow you (the consumer) to inspect and modify the final generated code for a given resolution -- this also allows unique optimizing abilities not possible with other containers.
 
