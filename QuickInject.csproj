@@ -40,7 +40,6 @@
   <ItemGroup>
     <Compile Include="ExtensionImpl.cs" />
     <Compile Include="GlobalSuppressions.cs" />
-    <Compile Include="InstanceInjectionMember.cs" />
     <Compile Include="LifetimeManagers\ContainerControlledLifetimeManager.cs" />
     <Compile Include="LifetimeManagers\ContextInvariantLifetimeManager.cs" />
     <Compile Include="LifetimeManagers\PerThreadLifetimeManager.cs" />
