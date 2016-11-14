@@ -57,7 +57,7 @@
     <Compile Include="IQuickInjectContainer.cs" />
     <Compile Include="LifetimeManager.cs" />
     <Compile Include="LifetimeManagers\TransientLifetimeManager.cs" />
-    <Compile Include="ParameterizedLambdaExpressionInjectionFactory.cs" />
+    <Compile Include="ParameterizedInjectionFactory.cs" />
     <Compile Include="QuickInjectILWriter.cs" />
     <Compile Include="RegistrationExtensionMethods.cs" />
   </ItemGroup>

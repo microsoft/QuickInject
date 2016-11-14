@@ -7,7 +7,6 @@ namespace QuickInject
     using System.Collections.Generic;
     using System.Collections.Immutable;
     using System.Linq;
-    using System.Linq.Expressions;
     using System.Reflection;
     using System.Reflection.Emit;
     using System.Runtime.CompilerServices;
@@ -50,7 +49,7 @@ namespace QuickInject
 
         private readonly Dictionary<Type, int> lifetimeTable = new Dictionary<Type, int>();
 
-        private readonly Dictionary<Type, LambdaExpression> lambdaExpressionTable = new Dictionary<Type, LambdaExpression>();
+        private readonly Dictionary<Type, MethodInfo> factoryTable = new Dictionary<Type, MethodInfo>();
 
         private readonly LifetimeManager[] lifetimeManagers = new LifetimeManager[1024];
 
@@ -238,7 +237,7 @@ namespace QuickInject
 
                 if (injectionMember != null)
                 {
-                    this.lambdaExpressionTable.AddOrUpdate(to, injectionMember.Factory);
+                    this.factoryTable.AddOrUpdate(to, injectionMember.Factory);
                 }
 
                 this.ClearBuildPlans();
@@ -294,7 +293,7 @@ namespace QuickInject
             ilGenerator.EmitCalli(OpCodes.Calli, CallingConventions.Standard, ObjectType, ParameterTypes, EmptyTypeArray);
         }
 
-        private static int CompileConstructorBasedType(ILGenerator ilGenerator, int lifetimeManagerIndex, ConstructorInfo ctorInfo, IEnumerable<Type> types, bool skipGetValueSetValueCalls, QuickInjectContainer container, int depth, Dictionary<Type, int> localIndexTable)
+        private static void CompileConstructorBasedType(ILGenerator ilGenerator, int lifetimeManagerIndex, ConstructorInfo ctorInfo, IEnumerable<Type> types, bool skipGetValueSetValueCalls, QuickInjectContainer container, int depth, Dictionary<Type, int> localIndexTable)
         {
             var singleReturnLabel = ilGenerator.DefineLabel();
             int localIndex = InvalidLocalIndex;
@@ -308,7 +307,6 @@ namespace QuickInject
             foreach (var type in types)
             {
                 int cachedLocal;
-
                 if (type == container.resolutionContextType)
                 {
                     ilGenerator.Emit(OpCodes.Ldarg_0);
@@ -337,11 +335,9 @@ namespace QuickInject
                 ilGenerator.MarkLabel(singleReturnLabel);
                 ilGenerator.Emit(OpCodes.Ldloc, localIndex);
             }
-
-            return localIndex;
         }
 
-        private static int CompileLambdaExpressionFactoryType(ILGenerator ilGenerator, int lifetimeManagerIndex, LambdaExpression lambdaExpression, bool skipGetValueSetValueCalls)
+        private static void CompileFactoryType(ILGenerator ilGenerator, int lifetimeManagerIndex, MethodInfo factoryMethod, bool skipGetValueSetValueCalls, Dictionary<Type, int> localIndexTable)
         {
             var singleReturnLabel = ilGenerator.DefineLabel();
             int localIndex = InvalidLocalIndex;
@@ -352,7 +348,14 @@ namespace QuickInject
                 EmitGetValueCallWithEarlyReturn(ilGenerator, lifetimeManagerIndex, singleReturnLabel, localIndex);
             }
 
-            new MyVisitor(ilGenerator).Visit(lambdaExpression);
+            var parameters = factoryMethod.GetParameters().Select(t => t.ParameterType);
+
+            foreach (var parameter in parameters)
+            {
+                ilGenerator.Emit(OpCodes.Ldloc, localIndexTable[parameter]);
+            }
+
+            ilGenerator.Emit(OpCodes.Call, factoryMethod);
 
             if (!skipGetValueSetValueCalls)
             {
@@ -361,11 +364,9 @@ namespace QuickInject
                 ilGenerator.MarkLabel(singleReturnLabel);
                 ilGenerator.Emit(OpCodes.Ldloc, localIndex);
             }
-
-            return localIndex;
         }
 
-        private static int CompileUnconstructibleType(ILGenerator ilGenerator, int lifetimeManagerIndex)
+        private static void CompileUnconstructibleType(ILGenerator ilGenerator, int lifetimeManagerIndex)
         {
             var singleReturnLabel = ilGenerator.DefineLabel();
             int localIndex = ilGenerator.DeclareLocal(ObjectType).LocalIndex;
@@ -376,8 +377,6 @@ namespace QuickInject
 
             ilGenerator.MarkLabel(singleReturnLabel);
             ilGenerator.Emit(OpCodes.Ldloc, localIndex);
-
-            return localIndex;
         }
 
         private static void CompileInstanceType(ILGenerator ilGenerator, int lifetimeManagerIndex)
@@ -523,26 +522,26 @@ namespace QuickInject
             return TransientLifetimeManagerInstance;
         }
 
-        private LambdaExpression GetLambdaExpressionExpressionFor(Type type)
+        private MethodInfo GetFactoryFor(Type type)
         {
-            LambdaExpression expression;
+            MethodInfo methodInfo;
 
-            if (this.lambdaExpressionTable.TryGetValue(type, out expression))
+            if (this.factoryTable.TryGetValue(type, out methodInfo))
             {
-                return expression;
+                return methodInfo;
             }
 
-            return this.parentContainer?.GetLambdaExpressionExpressionFor(type);
+            return this.parentContainer?.GetFactoryFor(type);
         }
 
         private IEnumerable<Type> Dependencies(Type type)
         {
             Type mappedType = this.GetMappingFor(type);
-            LambdaExpression expression = this.GetLambdaExpressionExpressionFor(mappedType);
+            var method = this.GetFactoryFor(mappedType);
 
-            if (expression != null)
+            if (method != null)
             {
-                return expression.Parameters.Select(t => t.Type);
+                return method.GetParameters().Select(t => t.ParameterType);
             }
 
             // container.RegisterType<IFoo>(new LifetimeManagerWillProvideValue())
@@ -559,26 +558,26 @@ namespace QuickInject
         {
             Type mappedType = this.GetMappingFor(type);
             int lifetimeManagerIndex = this.GetLifetimeManagerIndexFor(mappedType);
-            LambdaExpression expression;
+            MethodInfo methodInfo;
 
             if (this.resolutionContextType == type)
             {
                 ilGenerator.Emit(OpCodes.Ldarg_0); // first argument is always resolution context
             }
-            else if (this.lambdaExpressionTable.TryGetValue(type, out expression))
+            else if (this.factoryTable.TryGetValue(type, out methodInfo))
             {
-                if (expression == null)
+                if (methodInfo == null)
                 {
                     if (lifetimeManagerIndex == InvalidLifetimeIndex)
                     {
-                        throw new ArgumentNullException(nameof(expression)); // we use null as an indicator for RegisterInstance, but that means a lifetime manager is present
+                        throw new ArgumentNullException(nameof(methodInfo)); // we use null as an indicator for RegisterInstance, but that means a lifetime manager is present
                     }
 
                     CompileInstanceType(ilGenerator, lifetimeManagerIndex);
                 }
                 else
                 {
-                    CompileLambdaExpressionFactoryType(ilGenerator, lifetimeManagerIndex, expression, lifetimeManagerIndex == InvalidLifetimeIndex);
+                    CompileFactoryType(ilGenerator, lifetimeManagerIndex, methodInfo, lifetimeManagerIndex == InvalidLifetimeIndex, localIndexTable);
                 }
             }
             else if (mappedType.GetTypeInfo().IsAbstract || mappedType.GetTypeInfo().IsInterface)
@@ -641,7 +640,7 @@ namespace QuickInject
             var typeSet = new HashSet<Type>();
             foreach (var type in this.Dependencies(typeToResolve))
             {
-                foreach (var each in this.GetLambdaExpressionExpressionFor(type).Parameters.Select(t => t.Type))
+                foreach (var each in this.GetFactoryFor(type).GetParameters().Select(t => t.ParameterType))
                 {
                     typeSet.Add(each);
                 }
@@ -653,59 +652,6 @@ namespace QuickInject
         private bool ShouldInline(Type type, int depth)
         {
             return false;
-        }
-
-        private sealed class MyVisitor : ExpressionVisitor
-        {
-            private readonly ILGenerator ilGenerator;
-
-            public MyVisitor(ILGenerator ilGenerator)
-            {
-                this.ilGenerator = ilGenerator;
-            }
-
-            public override Expression Visit(Expression node)
-            {
-                return base.Visit(node);
-            }
-
-            protected override Expression VisitConstant(ConstantExpression node)
-            {
-                return base.VisitConstant(node);
-            }
-
-            protected override Expression VisitConditional(ConditionalExpression node)
-            {
-                return base.VisitConditional(node);
-            }
-
-            protected override Expression VisitBinary(BinaryExpression node)
-            {
-                return base.VisitBinary(node);
-            }
-
-            protected override Expression VisitMethodCall(MethodCallExpression node)
-            {
-                QuickInjectILWriter writer = new QuickInjectILWriter();
-
-                if (node.Object != null)
-                {
-                    if (node.Object.NodeType == ExpressionType.Parameter)
-                    {
-                        writer.LoadInstanceOf(node.Type);
-                    }
-                    else if (node.Object.NodeType == ExpressionType.Call)
-                    {
-                    }
-                }
-
-                return base.VisitMethodCall(node);
-            }
-
-            protected override Expression VisitParameter(ParameterExpression node)
-            {
-                return base.VisitParameter(node);
-            }
         }
 
         private sealed class InstanceInjectionMember : InjectionMember
