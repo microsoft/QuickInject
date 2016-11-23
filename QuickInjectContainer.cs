@@ -276,11 +276,14 @@ namespace QuickInject
             Tuple<DynamicMethod, IntPtr> value;
             if (this.dynamicMethodsDictionary.TryGetValue(type, out value))
             {
-                return QuickInjectHelper.CallIndirect(resolutionContext, this.lifetimeManagers, value.Item2);
+                return CallIndirect(resolutionContext, this.lifetimeManagers, value.Item2);
             }
 
-            return QuickInjectHelper.CallIndirect(resolutionContext, this.lifetimeManagers, this.Compile(type));
+            return CallIndirect(resolutionContext, this.lifetimeManagers, this.Compile(type));
         }
+
+        [CompilerIntrinsic]
+        private static extern object CallIndirect(object resolutionContext, LifetimeManager[] lifetimeManagers, IntPtr managedMethodPointer);
 
         private static void EmitCallIndirect(QuickInjectContainer container, ILGenerator ilGenerator, Type type)
         {
