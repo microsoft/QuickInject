@@ -1,18 +1,21 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
-<Project ToolsVersion="12.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+<Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <Import Project="..\packages\Microsoft.Net.Compilers.2.3.0\build\Microsoft.Net.Compilers.props" Condition="Exists('..\packages\Microsoft.Net.Compilers.2.3.0\build\Microsoft.Net.Compilers.props')" />
   <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
   <PropertyGroup>
-    <ProjectGuid>{9179ED00-A38F-43BA-B270-EB62A92E475E}</ProjectGuid>
+    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
+    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
+    <ProjectGuid>{489644E9-EEE5-48A5-9359-411139302B9D}</ProjectGuid>
     <OutputType>Library</OutputType>
+    <AppDesignerFolder>Properties</AppDesignerFolder>
     <RootNamespace>QuickInject</RootNamespace>
     <AssemblyName>QuickInject</AssemblyName>
-    <TargetFrameworkVersion>v4.5</TargetFrameworkVersion>
-    <TargetFrameworkIdentifier>.NETPortable</TargetFrameworkIdentifier>
-    <TargetFrameworkProfile>Profile7</TargetFrameworkProfile>
-    <ProjectTypeGuids>{786C830F-07A1-408B-BD7F-6EE04809D6DB};{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}</ProjectTypeGuids>
+    <TargetFrameworkVersion>v4.6</TargetFrameworkVersion>
+    <FileAlignment>512</FileAlignment>
+    <NuGetPackageImportStamp>
+    </NuGetPackageImportStamp>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
-    <PlatformTarget>AnyCPU</PlatformTarget>
     <DebugSymbols>true</DebugSymbols>
     <DebugType>full</DebugType>
     <Optimize>false</Optimize>
@@ -22,7 +25,6 @@
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
-    <PlatformTarget>AnyCPU</PlatformTarget>
     <DebugType>pdbonly</DebugType>
     <Optimize>true</Optimize>
     <OutputPath>bin\Release\</OutputPath>
@@ -31,11 +33,13 @@
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
   <ItemGroup>
-    <Compile Include="BuildPlanVisitors\GeneratedCodeTextWriterBuildPlanVisitor.cs" />
-    <Compile Include="BuildPlanVisitors\LifetimeManagerRequiresRecoveryBuildPlanVisitor.cs" />
-    <Compile Include="BuildPlanVisitors\TransientLifetimeRemovalBuildPlanVisitor.cs" />
-    <Compile Include="BuildPlanVisitors\TypeDeduplicationBuildPlanVisitor.cs" />
-    <Compile Include="CyclicDependencyException.cs" />
+    <Reference Include="System" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="CodeSafety.cs" />
+    <Compile Include="CompilerIntrinsicAttribute.cs" />
+    <Compile Include="ExtensionImpl.cs" />
+    <Compile Include="Extensions.cs" />
     <Compile Include="Extension\ChildContainerCreatedEventArgs.cs" />
     <Compile Include="Extension\ExtensionContext.cs" />
     <Compile Include="Extension\IPropertySelectorPolicy.cs" />
@@ -43,33 +47,37 @@
     <Compile Include="Extension\QuickInjectExtension.cs" />
     <Compile Include="Extension\RegisterEventArgs.cs" />
     <Compile Include="Extension\RegisterInstanceEventArgs.cs" />
-    <Compile Include="ImmutableDictionary.cs" />
+    <Compile Include="GrowableArray.cs" />
+    <Compile Include="ICompilationMonitor.cs" />
+    <Compile Include="ICodeProvider.cs" />
     <Compile Include="InjectionMember.cs" />
+    <Compile Include="IQuickInjectContainer.cs" />
     <Compile Include="IRequiresRecovery.cs" />
     <Compile Include="LifetimeManager.cs" />
     <Compile Include="LifetimeManagers\ContainerControlledLifetimeManager.cs" />
-    <Compile Include="LifetimeManagers\ExternallyControlledLifetimeManager.cs" />
-    <Compile Include="LifetimeManagers\PerThreadLifetimeManager.cs" />
+    <Compile Include="LifetimeManagers\ContextInvariantLifetimeManager.cs" />
     <Compile Include="LifetimeManagers\SynchronizedLifetimeManager.cs" />
     <Compile Include="LifetimeManagers\TransientLifetimeManager.cs" />
-    <Compile Include="QuickInjectContainer.cs" />
-    <Compile Include="QuickInjectEventSource.cs" />
-    <Compile Include="ExpressionGenerator.cs" />
-    <Compile Include="ExtensionImpl.cs" />
-    <Compile Include="Extensions.cs" />
-    <Compile Include="IQuickInjectContainer.cs" />
-    <Compile Include="IBuildPlanVisitor.cs" />
-    <Compile Include="ITreeNode.cs" />
     <Compile Include="ParameterizedLambdaExpressionInjectionFactory.cs" />
     <Compile Include="ParameterizedLambdaExpressionInjectionFactoryMethodCallExpression.cs" />
+    <Compile Include="QuickInjectContainer.cs" />
+    <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="QuickInjectEventSource.cs" />
     <Compile Include="RegistrationExtensionMethods.cs" />
-    <Compile Include="ResolutionContextParameterExpression.cs" />
-    <Compile Include="TreeNode.cs" />
-    <Compile Include="TypeRegistration.cs" />
+    <Compile Include="ResolveResolutionContextExpression.cs" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="LICENSE" />
-    <None Include="README.md" />
+    <Analyzer Include="..\packages\StyleCop.Analyzers.1.0.2\analyzers\dotnet\cs\StyleCop.Analyzers.CodeFixes.dll" />
+    <Analyzer Include="..\packages\StyleCop.Analyzers.1.0.2\analyzers\dotnet\cs\StyleCop.Analyzers.dll" />
   </ItemGroup>
-  <Import Project="$(MSBuildExtensionsPath32)\Microsoft\Portable\$(TargetFrameworkVersion)\Microsoft.Portable.CSharp.targets" />
+  <ItemGroup>
+    <None Include="packages.config" />
+  </ItemGroup>
+  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+  <Target Name="EnsureNuGetPackageBuildImports" BeforeTargets="PrepareForBuild">
+    <PropertyGroup>
+      <ErrorText>This project references NuGet package(s) that are missing on this computer. Use NuGet Package Restore to download them.  For more information, see http://go.microsoft.com/fwlink/?LinkID=322105. The missing file is {0}.</ErrorText>
+    </PropertyGroup>
+    <Error Condition="!Exists('..\packages\Microsoft.Net.Compilers.2.3.0\build\Microsoft.Net.Compilers.props')" Text="$([System.String]::Format('$(ErrorText)', '..\packages\Microsoft.Net.Compilers.2.3.0\build\Microsoft.Net.Compilers.props'))" />
+  </Target>
 </Project>

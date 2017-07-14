@@ -9,11 +9,8 @@
             this.ChildContext = childContext;
         }
 
-        public IQuickInjectContainer ChildContainer
-        {
-            get { return this.ChildContext.Container; }
-        }
+        public IQuickInjectContainer ChildContainer => this.ChildContext.Container;
 
-        public ExtensionContext ChildContext { get; private set; }
+        public ExtensionContext ChildContext { get; }
     }
 }

@@ -5,25 +5,25 @@
     public interface IQuickInjectContainer : IServiceProvider, IDisposable
     {
         /// <summary>
-        /// Gets the parent container or returns null if no parent exists. 
+        /// Gets the parent container or returns null if no parent exists.
         /// </summary>
         IQuickInjectContainer Parent { get; }
 
         /// <summary>
-        /// Initializes the extension. 
+        /// Initializes the extension.
         /// </summary>
         /// <param name="extension">The extension to be initialized.</param>
         /// <returns>Returns this container.</returns>
         IQuickInjectContainer AddExtension(QuickInjectExtension extension);
 
         /// <summary>
-        /// Sets the new IPropertySelectorPolicy to use. 
+        /// Sets the new IPropertySelectorPolicy to use.
         /// </summary>
         /// <param name="policy">The policy to use.</param>
         void SetPropertySelectorPolicy(IPropertySelectorPolicy policy);
 
         /// <summary>
-        /// Builds up the properties of an existing object. 
+        /// Builds up the properties of an existing object.
         /// </summary>
         /// <param name="t">The type of the object.</param>
         /// <param name="existing">The existing object.</param>
@@ -31,7 +31,7 @@
         object BuildUp(Type t, object existing);
 
         /// <summary>
-        /// Builds up the properties of an existing object. 
+        /// Builds up the properties of an existing object.
         /// </summary>
         /// <param name="t">The type of the object.</param>
         /// <param name="existing">The existing object.</param>
@@ -45,27 +45,46 @@
         /// <returns>The new child container instance.</returns>
         IQuickInjectContainer CreateChildContainer();
 
+        /// <summary>
+        /// Registers the instance as the subject of a type resolution.
+        /// </summary>
+        /// <param name="t">The type that this instance should resolve.</param>
+        /// <param name="instance">The object instance.</param>
+        /// <param name="lifetime">The lifetime manager.</param>
+        /// <returns>This container.</returns>
         IQuickInjectContainer RegisterInstance(Type t, object instance, LifetimeManager lifetime);
 
+        /// <summary>
+        /// Notifies the container that requests for the specified type should be resolved via
+        /// the resolution context.
+        /// </summary>
+        /// <typeparam name="T">The type to register as the context type.</typeparam>
+        /// <returns>The container.</returns>
+        IQuickInjectContainer RegisterTypeAsResolutionContext<T>();
+
+        /// <summary>
+        /// Registers type resolutions.
+        /// </summary>
+        /// <param name="from">The type that should resolved.</param>
+        /// <param name="to">The concrete type.</param>
+        /// <param name="lifetimeManager">The lifetime manager.</param>
+        /// <param name="injectionMember">Optional injection of an expression factory.</param>
+        /// <returns>The container.</returns>
         IQuickInjectContainer RegisterType(Type from, Type to, LifetimeManager lifetimeManager, InjectionMember injectionMember = null);
 
+        /// <summary>
+        /// Resolves the type into an object instance.
+        /// </summary>
+        /// <param name="t">The type to resolve.</param>
+        /// <returns>The resolved object.</returns>
         object Resolve(Type t);
-        
+
+        /// <summary>
+        /// Resolves the type into an object instance.
+        /// </summary>
+        /// <param name="t">The type to resolve.</param>
+        /// <param name="resolutionContext">The optional resolution context to use.</param>
+        /// <returns>The resolved object.</returns>
         object Resolve(Type t, object resolutionContext);
-        
-        /// <summary>
-        /// Adds a build plan visitor this container.
-        /// </summary>
-        /// <param name="visitor"></param>
-        void AddBuildPlanVisitor(IBuildPlanVisitor visitor);
-
-        /// <summary>
-        /// Registers a listener that can be used to visualize the full object graph that was needed to 
-        /// compute a given type. Currently does nothing? 
-        /// </summary>
-        /// <param name="action">The action to invoke.</param>
-        void RegisterDependencyTreeListener(Action<ITreeNode<Type>> action);
-
-        void RegisterResolutionContextType<T>();
     }
 }

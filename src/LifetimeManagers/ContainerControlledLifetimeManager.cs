@@ -6,35 +6,34 @@
     {
         private object value;
 
-        protected override object SynchronizedGetValue()
-        {
-            return this.value;
-        }
-        
-        protected override void SynchronizedSetValue(object newValue)
-        {
-            this.value = newValue;
-        }
-        
         public override void RemoveValue()
         {
             this.Dispose();
         }
-        
+
         public void Dispose()
         {
             this.Dispose(true);
-            GC.SuppressFinalize(this); // shut FxCop up
+            GC.SuppressFinalize(this);
         }
-        
+
+        protected override object SynchronizedGetValue()
+        {
+            return this.value;
+        }
+
+        protected override void SynchronizedSetValue(object newValue)
+        {
+            this.value = newValue;
+        }
+
         protected virtual void Dispose(bool disposing)
         {
             if (this.value != null)
             {
-                if (this.value is IDisposable)
-                {
-                    ((IDisposable)this.value).Dispose();
-                }
+                var disposable = this.value as IDisposable;
+                disposable?.Dispose();
+
                 this.value = null;
             }
         }

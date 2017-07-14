@@ -2,7 +2,7 @@
 {
     using System.Linq.Expressions;
 
-    internal sealed class ResolutionContextParameterExpression : Expression
+    internal sealed class ResolveResolutionContextExpression : Expression
     {
     }
 }

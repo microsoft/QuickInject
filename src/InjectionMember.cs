@@ -1,9 +1,14 @@
 ﻿namespace QuickInject
 {
-    using System.Linq.Expressions;
+    using System;
+    using System.Collections.Generic;
 
     public abstract class InjectionMember
     {
-        public Expression Factory { get; protected set; }
+        public Type ResultType { get; protected set; }
+
+        public IEnumerable<Type> DependentTypes { get; protected set; }
+
+        public ICodeProvider CodeProvider { get; protected set; }
     }
 }

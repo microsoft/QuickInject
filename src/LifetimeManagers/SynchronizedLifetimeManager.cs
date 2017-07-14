@@ -2,30 +2,28 @@
 {
     using System.Threading;
 
-    public abstract class SynchronizedLifetimeManager : LifetimeManager, IRequiresRecovery
+    public abstract class SynchronizedLifetimeManager : ContextInvariantLifetimeManager, IRequiresRecovery
     {
         private readonly object lockObj = new object();
-        
+
         public override object GetValue()
         {
             Monitor.Enter(this.lockObj);
-            object result = this.SynchronizedGetValue();
+            var result = this.SynchronizedGetValue();
+
             if (result != null)
             {
                 Monitor.Exit(this.lockObj);
             }
+
             return result;
         }
-        
-        protected abstract object SynchronizedGetValue();
-        
+
         public override void SetValue(object newValue)
         {
             this.SynchronizedSetValue(newValue);
             this.TryExit();
         }
-        
-        protected abstract void SynchronizedSetValue(object newValue);
 
         public override void RemoveValue()
         {
@@ -35,6 +33,10 @@
         {
             this.TryExit();
         }
+
+        protected abstract object SynchronizedGetValue();
+
+        protected abstract void SynchronizedSetValue(object newValue);
 
         private void TryExit()
         {

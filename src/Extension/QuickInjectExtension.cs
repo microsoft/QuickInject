@@ -8,21 +8,15 @@
 
         private ExtensionContext context;
 
-        public IQuickInjectContainer Container
-        {
-            get { return this.container; }
-        }
+        public IQuickInjectContainer Container => this.container;
 
-        protected ExtensionContext Context
-        {
-            get { return this.context; }
-        }
+        protected ExtensionContext Context => this.context;
 
         internal void InitializeExtension(ExtensionContext extensionContext)
         {
             if (extensionContext == null)
             {
-                throw new ArgumentNullException("extensionContext");
+                throw new ArgumentNullException(nameof(extensionContext));
             }
 
             this.container = extensionContext.Container;

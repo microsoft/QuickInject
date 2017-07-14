@@ -9,12 +9,14 @@
             return container.RegisterType(null, typeof(T), null, injectionMember);
         }
 
-        public static IQuickInjectContainer RegisterType<TFrom, TTo>(this IQuickInjectContainer container, InjectionMember injectionMember = null) where TTo : TFrom
+        public static IQuickInjectContainer RegisterType<TFrom, TTo>(this IQuickInjectContainer container, InjectionMember injectionMember = null)
+            where TTo : TFrom
         {
             return container.RegisterType(typeof(TFrom), typeof(TTo), null, injectionMember);
         }
 
-        public static IQuickInjectContainer RegisterType<TFrom, TTo>(this IQuickInjectContainer container, LifetimeManager lifetimeManager, InjectionMember injectionMember = null) where TTo : TFrom
+        public static IQuickInjectContainer RegisterType<TFrom, TTo>(this IQuickInjectContainer container, LifetimeManager lifetimeManager, InjectionMember injectionMember = null)
+            where TTo : TFrom
         {
             return container.RegisterType(typeof(TFrom), typeof(TTo), lifetimeManager, injectionMember);
         }
@@ -58,7 +60,7 @@
         {
             return (T)container.Resolve(typeof(T));
         }
-        
+
         public static T Resolve<T>(this IQuickInjectContainer container, object resolutionContext)
         {
             return (T)container.Resolve(typeof(T), resolutionContext);

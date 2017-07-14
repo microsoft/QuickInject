@@ -9,7 +9,7 @@
         [NonEvent]
         public void RegisterType(Type from, Type to, LifetimeManager lifetime)
         {
-            this.RegisterType(from.ToString(), to.ToString(), lifetime == null ? string.Empty : lifetime.GetType().ToString());
+            this.RegisterType(from.ToString(), to.ToString(), lifetime?.GetType().ToString() ?? string.Empty);
         }
 
         public void RegisterType(string from, string to, string lifetimeType)
@@ -92,6 +92,18 @@
             this.WriteEvent(14, type);
         }
 
+        [Event(15, Task = Tasks.CompilationDataStructureCopy, Opcode = EventOpcode.Start)]
+        public void CompilationDataStructureCopyStart(string type)
+        {
+            this.WriteEvent(12, type);
+        }
+
+        [Event(16, Task = Tasks.CompilationDataStructureCopy, Opcode = EventOpcode.Stop)]
+        public void CompilationDataStructureCopyStop(string type)
+        {
+            this.WriteEvent(13, type);
+        }
+
         internal sealed class Tasks
         {
             public const EventTask Compilation = (EventTask)1;
@@ -99,6 +111,7 @@
             public const EventTask CompilationCodeGeneration = (EventTask)3;
             public const EventTask CompilationCodeCompilation = (EventTask)4;
             public const EventTask CompilationContention = (EventTask)5;
+            public const EventTask CompilationDataStructureCopy = (EventTask)6;
         }
     }
 }
