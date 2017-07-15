@@ -1,8 +1,8 @@
 ﻿namespace UnitTests
 {
-    internal sealed class ClassA
+    internal sealed class A
     {
-        public ClassA()
+        public A()
         {
             this.Value = 42;
         }

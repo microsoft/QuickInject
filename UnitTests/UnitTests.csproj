@@ -48,7 +48,8 @@
     <Reference Include="System.Core" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="ClassA.cs" />
+    <Compile Include="A.cs" />
+    <Compile Include="B.cs" />
     <Compile Include="TestLifetimeManager.cs" />
     <Compile Include="UnitTest.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />

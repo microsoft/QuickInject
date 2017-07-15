@@ -2,11 +2,13 @@
 {
     using System;
     using System.Collections.Generic;
+    using System.Collections.Immutable;
     using System.Linq;
     using System.Linq.Expressions;
     using System.Reflection;
     using System.Reflection.Emit;
     using System.Runtime.CompilerServices;
+    using System.Threading;
 
     public sealed class QuickInjectContainer : IQuickInjectContainer
     {
@@ -26,11 +28,21 @@
 
         private static readonly Type ObjectArrayType = typeof(object[]);
 
-        private static readonly Type[] ParameterTypes = { QuickInjectContainerType, LifetimeManagerArrayType, ObjectArrayType, ObjectType };
+        private static readonly Type Int32Type = typeof(int);
+
+        private static readonly Type[] ParameterTypes = { QuickInjectContainerType, LifetimeManagerArrayType, ObjectArrayType, ObjectType, Int32Type };
 
         private static readonly Type LifetimeManagerType = typeof(LifetimeManager);
 
         private static readonly Type ExceptionType = typeof(Exception);
+
+        private static readonly Type ImmutableArrayType = typeof(ImmutableArray<IntPtr>);
+
+        private static readonly MethodInfo CompileMethodInfo = typeof(QuickInjectContainer).GetMethod("Compile", BindingFlags.NonPublic | BindingFlags.Instance);
+
+        private static readonly FieldInfo JumpTableFieldInfo = QuickInjectContainerType.GetField("jumpTable", BindingFlags.Instance | BindingFlags.NonPublic);
+
+        private static readonly MethodInfo ImmutableArrayGetItemMethodInfo = ImmutableArrayType.GetMethod("get_Item");
 
         private static readonly MethodInfo GetValueMethodInfo = LifetimeManagerType.GetMethod("GetValue", new Type[] { ObjectType });
 
@@ -52,8 +64,6 @@
 
         private static GrowableArray<object> Constants = new GrowableArray<object>(1000);
 
-        private readonly bool generateVerifiableCode;
-
         private readonly ICompilationMonitor compilationMonitor;
 
         private readonly QuickInjectContainer parentContainer;
@@ -72,25 +82,27 @@
 
         private readonly object compileLock = new object();
 
-        private Dictionary<Type, PropertyInfo[]> propertyInfoTable =new Dictionary<Type, PropertyInfo[]>();
+        private Dictionary<Type, PropertyInfo[]> propertyInfoTable = new Dictionary<Type, PropertyInfo[]>();
 
-        private Dictionary<IntPtr, IntPtr> jumpTable = new Dictionary<IntPtr, IntPtr>();
+        private ImmutableArray<IntPtr> jumpTable = ImmutableArray<IntPtr>.Empty;
 
-        private List<DynamicMethod> dynamicMethods = new List<DynamicMethod>();
+        private ImmutableList<DynamicMethod> dynamicMethods = ImmutableList<DynamicMethod>.Empty;
 
         private IPropertySelectorPolicy propertySelectorPolicy;
 
         private ExtensionImpl extensionImpl;
 
+        private PerfectHashProvider perfectHashProvider;
+
         public QuickInjectContainer()
         {
+            RuntimeHelpers.PrepareMethod(CompileMethodInfo.MethodHandle);
             this.InitializeContainer();
         }
 
-        public QuickInjectContainer(ICompilationMonitor compilationMonitor, CodeVerification codeVerification)
+        public QuickInjectContainer(ICompilationMonitor compilationMonitor)
             : this()
         {
-            this.generateVerifiableCode = codeVerification == CodeVerification.Verifiable;
             this.compilationMonitor = compilationMonitor;
         }
 
@@ -102,6 +114,9 @@
 
             this.parentContainer = parent ?? throw new ArgumentNullException(nameof(parent));
             this.extensionImpl = this.parentContainer.extensionImpl;
+
+            this.perfectHashProvider = this.parentContainer.perfectHashProvider;
+            this.perfectHashProvider.AddContainer(this);
 
             this.factoryExpressionTable.Add(IQuickInjectContainerType, Expression.Constant(this));
         }
@@ -251,14 +266,13 @@
                 Logger.Resolve(t.ToString());
             }
 #endif
-
-            var typeHandle = t.TypeHandle.Value;
-            return this.jumpTable.TryGetValue(typeHandle, out IntPtr methodPtr) ? CallIndirect(this, LifetimeManagers.UnderlyingArray, Constants.UnderlyingArray, resolutionContext, methodPtr) : this.Compile(typeHandle, resolutionContext);
+            var index = this.perfectHashProvider.GetUniqueId(t);
+            return CallIndirect(this, LifetimeManagers.UnderlyingArray, Constants.UnderlyingArray, resolutionContext, index, this.jumpTable[index]);
         }
 
-        public object ResolveInternal(LifetimeManager[] lifetimeManagers, object[] constants, object resolutionContext, IntPtr typeHandle)
+        public object ResolveInternal(LifetimeManager[] lifetimeManagers, object[] constants, object resolutionContext, int typeIndex)
         {
-            return this.jumpTable.TryGetValue(typeHandle, out IntPtr methodPtr) ? CallIndirect(this, lifetimeManagers, constants, resolutionContext, methodPtr) : this.Compile(typeHandle, resolutionContext);
+            return CallIndirect(this, lifetimeManagers, constants, resolutionContext, typeIndex, this.jumpTable[typeIndex]);
         }
 
         public object GetService(Type serviceType)
@@ -449,10 +463,10 @@
 
         [CompilerIntrinsic]
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static extern object CallIndirect(QuickInjectContainer container, LifetimeManager[] lifetimeManagers, object[] constants, object resolutionContext, IntPtr nativeFunctionPointer);
+        private static extern object CallIndirect(QuickInjectContainer container, LifetimeManager[] lifetimeManagers, object[] constants, object resolutionContext, int index, IntPtr nativeFunctionPointer);
 
         [MethodImpl(MethodImplOptions.NoInlining)]
-        private object Compile(IntPtr h, object resolutionContext)
+        private object Compile(LifetimeManager[] lifetimeManagers, object[] constants, object resolutionContext, int typeIndex)
         {
             // Lifetime managers is empty at QuickInject start (across the entire program, not just the instance)
             lock (StaticLock)
@@ -463,7 +477,7 @@
                 }
             }
 
-            var t = GetTypeFromHandle(h);
+            var t = this.perfectHashProvider.GetTypeFromIndex(typeIndex);
             string typeString = t.ToString();
 
             this.compilationMonitor?.Begin(t, resolutionContext);
@@ -474,10 +488,12 @@
             {
                 Logger.CompilationContentionStop(typeString);
 
+                IntPtr methodPtr = this.jumpTable[typeIndex];
+
                 // Double-check if another thread already compiled a build plan for this type while waiting for the lock. Only compile if there is still no plan.
-                if (this.jumpTable.TryGetValue(h, out IntPtr methodPtr))
+                if (methodPtr != CompileMethodInfo.MethodHandle.GetFunctionPointer())
                 {
-                    return CallIndirect(this, LifetimeManagers.UnderlyingArray, Constants.UnderlyingArray, resolutionContext, methodPtr);
+                    return CallIndirect(this, lifetimeManagers, constants, resolutionContext, -1, methodPtr);
                 }
 
                 Logger.CompilationCodeGenerationStart(typeString);
@@ -509,25 +525,14 @@
 
                         ilGenerator.DeclareLocal(type);
 
-                        ilGenerator.Emit(OpCodes.Ldarg_0);
-                        ilGenerator.Emit(OpCodes.Ldarg_1);
-                        ilGenerator.Emit(OpCodes.Ldarg_2);
-                        ilGenerator.Emit(OpCodes.Ldarg_3);
+                        this.WriteResolveInternalCall(ilGenerator, t);
 
-                        var typeHandle = type.TypeHandle.Value;
-                        ilGenerator.Emit(IntPtr.Size == 4 ? OpCodes.Ldc_I4 : OpCodes.Ldc_I8, IntPtr.Size == 4 ? typeHandle.ToInt32() : typeHandle.ToInt64());
-                        ilGenerator.Emit(OpCodes.Call, ResolveInternalCall);
                         ilGenerator.Emit(OpCodes.Stloc, index);
                     }
 
                     foreach (var immediateDependency in immediateDependencies)
                     {
                         this.CodeGen(ilGenerator, immediateDependency, extendedPrologResolveCallsMap, topLevelCodeGen: false);
-
-                        if (this.generateVerifiableCode)
-                        {
-                            ilGenerator.Emit(OpCodes.Isinst, immediateDependency);
-                        }
                     }
 
                     ilGenerator.Emit(OpCodes.Newobj, ctor);
@@ -551,42 +556,15 @@
 
                 Logger.CompilationDataStructureCopyStart(typeString);
 
-                // make a new reference that we'll swap with
-                var newJumpTable = new Dictionary<IntPtr, IntPtr>();
-
-                // copy all the values into this new dictionary
-                foreach (var elem in this.jumpTable)
-                {
-                    newJumpTable.Add(elem.Key, elem.Value);
-                }
-
-                // copy the one we're going to add
-                newJumpTable.Add(h, methodPtr);
-
-                // atomic swap of the reference
-                this.jumpTable = newJumpTable;
-
-                // make a new reference that we'll swap with
-                var newDynamicMethodList = new List<DynamicMethod>();
-
-                // copy all the values into this new list
-                foreach (var elem in this.dynamicMethods)
-                {
-                    newDynamicMethodList.Add(elem);
-                }
-
-                // copy the one we're going to add
-                newDynamicMethodList.Add(dynamicMethod);
-
-                // atomic swap of the reference
-                this.dynamicMethods = newDynamicMethodList;
+                this.jumpTable = this.jumpTable.SetItem(typeIndex, methodPtr);
+                this.dynamicMethods = this.dynamicMethods.Add(dynamicMethod);
 
                 Logger.CompilationDataStructureCopyStop(typeString);
 
                 this.compilationMonitor?.End(t, resolutionContext);
                 Logger.CompilationStop(typeString);
 
-                return CallIndirect(this, LifetimeManagers.UnderlyingArray, Constants.UnderlyingArray, resolutionContext, methodPtr);
+                return CallIndirect(this, LifetimeManagers.UnderlyingArray, Constants.UnderlyingArray, resolutionContext, -1, methodPtr);
             }
         }
 
@@ -628,16 +606,19 @@
                 }
                 else
                 {
-                    ilGenerator.Emit(OpCodes.Ldarg_0);
-                    ilGenerator.Emit(OpCodes.Ldarg_1);
-                    ilGenerator.Emit(OpCodes.Ldarg_2);
-                    ilGenerator.Emit(OpCodes.Ldarg_3);
-
-                    var typeHandle = type.TypeHandle.Value;
-                    ilGenerator.Emit(IntPtr.Size == 4 ? OpCodes.Ldc_I4 : OpCodes.Ldc_I8, IntPtr.Size == 4 ? typeHandle.ToInt32() : typeHandle.ToInt64());
-                    ilGenerator.Emit(OpCodes.Call, ResolveInternalCall);
+                    this.WriteResolveInternalCall(ilGenerator, type);
                 }
             }
+        }
+
+        private void WriteResolveInternalCall(ILGenerator ilGenerator, Type t)
+        {
+            ilGenerator.Emit(OpCodes.Ldarg_0);
+            ilGenerator.Emit(OpCodes.Ldarg_1);
+            ilGenerator.Emit(OpCodes.Ldarg_2);
+            ilGenerator.Emit(OpCodes.Ldarg_3);
+            ilGenerator.Emit(OpCodes.Ldc_I4, this.perfectHashProvider.GetUniqueId(t));
+            ilGenerator.Emit(OpCodes.Call, ResolveInternalCall);
         }
 
         private IEnumerable<Type> ImmediateDependencies(Type type, out ConstructorInfo ctor)
@@ -695,7 +676,8 @@
         private void InitializeContainer()
         {
             this.extensionImpl = new ExtensionImpl(this);
-
+            this.perfectHashProvider = new PerfectHashProvider(CompileMethodInfo.MethodHandle.GetFunctionPointer()); // this instance is used by all containers of a heirarchy
+            this.perfectHashProvider.AddContainer(this);
             this.factoryExpressionTable.Add(IQuickInjectContainerType, Expression.Constant(this));
             this.lifetimeIndexTable.Add(TransientLifetimeManager.Default, 0);
 
@@ -706,8 +688,8 @@
 
         private void ClearBuildPlans()
         {
-            this.jumpTable = new Dictionary<IntPtr, IntPtr>();
-            this.dynamicMethods = new List<DynamicMethod>();
+            this.jumpTable = ImmutableArray<IntPtr>.Empty;
+            this.dynamicMethods = ImmutableList<DynamicMethod>.Empty;
 
             var childrenStack = new Stack<QuickInjectContainer>();
             childrenStack.Push(this);
@@ -716,8 +698,8 @@
             {
                 var curr = childrenStack.Pop();
 
-                curr.jumpTable = new Dictionary<IntPtr, IntPtr>();
-                curr.dynamicMethods = new List<DynamicMethod>();
+                curr.jumpTable = ImmutableArray<IntPtr>.Empty;
+                curr.dynamicMethods = ImmutableList<DynamicMethod>.Empty;
 
                 foreach (var child in curr.children)
                 {
@@ -833,6 +815,96 @@
             }
 
             return null;
+        }
+
+        private sealed class PerfectHashProvider
+        {
+            private readonly List<Type> types = new List<Type>();
+
+            private readonly object lockObj = new object();
+
+            private readonly List<QuickInjectContainer> containers = new List<QuickInjectContainer>();
+
+            private readonly IntPtr compileMethodPtr;
+
+            private ImmutableDictionary<Type, int> perfectHashMap;
+
+            public PerfectHashProvider(IntPtr compileMethodPtr)
+            {
+                this.perfectHashMap = ImmutableDictionary<Type, int>.Empty;
+                this.compileMethodPtr = compileMethodPtr;
+            }
+
+            public Type GetTypeFromIndex(int index)
+            {
+                lock (this.lockObj)
+                {
+                    // yes, linear search. I just want this working for now.
+                    for (int i = 0; i < this.types.Count; ++i)
+                    {
+                        if (i == index)
+                        {
+                            return this.types[i];
+                        }
+                    }
+                }
+
+                throw new Exception($"No type found at index {index}");
+            }
+
+            public void AddContainer(QuickInjectContainer container)
+            {
+                lock (this.lockObj)
+                {
+                    var tmp = ImmutableArray<IntPtr>.Empty;
+
+                    for (int i = 0; i < this.types.Count; ++i)
+                    {
+                        tmp = tmp.Add(this.compileMethodPtr);
+                    }
+
+                    this.containers.Add(container);
+
+                    // jump tables need to be setup after adding the container
+                    Thread.MemoryBarrier();
+
+                    container.jumpTable = tmp;
+                }
+            }
+
+            public int GetUniqueId(Type t)
+            {
+                if (!this.perfectHashMap.TryGetValue(t, out int value))
+                {
+                    this.SlowLookup(t, out value);
+                }
+
+                return value;
+            }
+
+            [MethodImpl(MethodImplOptions.NoInlining)]
+            private void SlowLookup(Type t, out int value)
+            {
+                lock (this.lockObj)
+                {
+                    if (!this.perfectHashMap.TryGetValue(t, out value))
+                    {
+                        this.types.Add(t);
+                        value = this.types.Count - 1;
+
+                        foreach (var container in this.containers)
+                        {
+                            container.jumpTable = container.jumpTable.Add(this.compileMethodPtr);
+                        }
+
+                        // prevent this.perfectHashMap is assigned after the jump tables are setup
+                        // gotta think about ARM :)
+                        Thread.MemoryBarrier();
+
+                        this.perfectHashMap = this.perfectHashMap.Add(t, value);
+                    }
+                }
+            }
         }
     }
 }

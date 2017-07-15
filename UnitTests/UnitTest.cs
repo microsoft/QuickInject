@@ -10,7 +10,7 @@
         public void SimpleDefaultConstructorTest()
         {
             var container = new QuickInjectContainer();
-            var classA = container.Resolve<ClassA>();
+            var classA = container.Resolve<A>();
             Assert.AreEqual(classA.Value, 42);
         }
 
@@ -19,13 +19,13 @@
         {
             var container = new QuickInjectContainer();
             var lifetimeManager = new TestLifetimeManager();
-            container.RegisterType<ClassA>(lifetimeManager);
+            container.RegisterType<A>(lifetimeManager);
 
-            var instance = new ClassA { Value = 43 };
+            var instance = new A { Value = 43 };
 
             lifetimeManager.SetValue(instance);
 
-            var classA = container.Resolve<ClassA>();
+            var classA = container.Resolve<A>();
             Assert.AreEqual(classA.Value, 43);
         }
 
@@ -34,11 +34,20 @@
         {
             var container = new QuickInjectContainer();
             var lifetimeManager = new TestLifetimeManager();
-            container.RegisterType<ClassA>(lifetimeManager);
+            container.RegisterType<A>(lifetimeManager);
 
-            container.Resolve<ClassA>(); // side-effect is that lifetimeManager should have the right value
+            container.Resolve<A>(); // side-effect is that lifetimeManager should have the right value
 
-            Assert.AreEqual(42, (lifetimeManager.GetValue() as ClassA).Value);
+            Assert.AreEqual(42, (lifetimeManager.GetValue() as A).Value);
+        }
+
+        [TestMethod]
+        public void ValidateSetValueSimpleConstructor()
+        {
+            var container = new QuickInjectContainer();
+
+            var b = container.Resolve<B>();
+            Assert.AreNotEqual(b.A1, b.A2);
         }
     }
 }
