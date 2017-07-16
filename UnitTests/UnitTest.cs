@@ -1,4 +1,6 @@
-﻿namespace UnitTests
+﻿using System;
+
+namespace UnitTests
 {
     using Microsoft.VisualStudio.TestTools.UnitTesting;
     using QuickInject;
@@ -47,6 +49,8 @@
             var container = new QuickInjectContainer();
 
             var b = container.Resolve<B>();
+
+            Console.ReadKey();
             Assert.AreNotEqual(b.A1, b.A2);
         }
     }

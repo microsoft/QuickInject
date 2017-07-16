@@ -48,8 +48,6 @@
 
         private static readonly MethodInfo SetValueMethodInfo = LifetimeManagerType.GetMethod("SetValue", new Type[] { ObjectType, ObjectType });
 
-        private static readonly MethodInfo ResolveInternalCall = QuickInjectContainerType.GetMethod("ResolveInternal");
-
         private static readonly MethodInfo NonConstructableTypeMethodInfo = QuickInjectContainerType.GetMethod("ThrowNonConstructableType");
 
         private static readonly MethodInfo RethrowExceptionMethodInfo = QuickInjectContainerType.GetMethod("RethrowException");
@@ -258,6 +256,7 @@
             return this.Resolve(t, resolutionContext: null);
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public object Resolve(Type t, object resolutionContext)
         {
 #if DEBUG
@@ -268,11 +267,6 @@
 #endif
             var index = this.perfectHashProvider.GetUniqueId(t);
             return CallIndirect(this, LifetimeManagers.UnderlyingArray, Constants.UnderlyingArray, resolutionContext, index, this.jumpTable[index]);
-        }
-
-        public object ResolveInternal(LifetimeManager[] lifetimeManagers, object[] constants, object resolutionContext, int typeIndex)
-        {
-            return CallIndirect(this, lifetimeManagers, constants, resolutionContext, typeIndex, this.jumpTable[typeIndex]);
         }
 
         public object GetService(Type serviceType)
@@ -613,12 +607,18 @@
 
         private void WriteResolveInternalCall(ILGenerator ilGenerator, Type t)
         {
+            var index = this.perfectHashProvider.GetUniqueId(t);
+
             ilGenerator.Emit(OpCodes.Ldarg_0);
             ilGenerator.Emit(OpCodes.Ldarg_1);
             ilGenerator.Emit(OpCodes.Ldarg_2);
             ilGenerator.Emit(OpCodes.Ldarg_3);
-            ilGenerator.Emit(OpCodes.Ldc_I4, this.perfectHashProvider.GetUniqueId(t));
-            ilGenerator.Emit(OpCodes.Call, ResolveInternalCall);
+            ilGenerator.Emit(OpCodes.Ldc_I4, index);
+            ilGenerator.Emit(OpCodes.Ldarg_0);
+            ilGenerator.Emit(OpCodes.Ldflda, JumpTableFieldInfo);
+            ilGenerator.Emit(OpCodes.Ldc_I4, index);
+            ilGenerator.Emit(OpCodes.Call, ImmutableArrayGetItemMethodInfo);
+            ilGenerator.EmitCalli(OpCodes.Calli, CallingConventions.Standard, ReturnType, ParameterTypes, null);
         }
 
         private IEnumerable<Type> ImmediateDependencies(Type type, out ConstructorInfo ctor)
@@ -817,6 +817,28 @@
             return null;
         }
 
+        /// <summary>
+        /// This class provides a perfect hash from System.Type to System.Int32. This System.Int32 is actually an
+        /// index into a "Jump Table". This table is an array of System.IntPtrs. An important point to note is that
+        /// each container has its own Jump Table. And an even more important point is that the index inside each
+        /// of the Jump Tables MUST be the same for things to work.
+        ///
+        /// e.g.
+        ///
+        /// Let's say we map the type "MyFooClass" to index 0 in the array, this means that the Jump Table at index 0
+        /// holds critical information (the method pointer) on how to jump to create that type. This index is the same
+        /// in each related container (i.e. Container B which is a child of Container A MUST have index 0 of its
+        /// own jump table (as previously noted, each container has its own jump table) to be set to the build plan of
+        /// "MyFooClass", and so does Container B.
+        ///
+        /// Now you may be wondering how do child containers support different plans then?
+        ///
+        /// Take a look at "AddContainer". Basically this method copies all the indexes into its own jump table
+        /// and sets the method pointer to jump to, as the well-known "Compile Method Pointer". And then when a resolution
+        /// takes place from this the context of this container, it'll actually hit the Compile method, which will
+        /// regenerate the build plan in the context of the container. Of course, the next logical step here would be
+        /// to check if we really need to generate a new build plan or if we can point to the one in the parent.
+        /// </summary>
         private sealed class PerfectHashProvider
         {
             private readonly List<Type> types = new List<Type>();
@@ -827,19 +849,20 @@
 
             private readonly IntPtr compileMethodPtr;
 
-            private ImmutableDictionary<Type, int> perfectHashMap;
+            private Dictionary<Type, int> perfectHashMap;
 
             public PerfectHashProvider(IntPtr compileMethodPtr)
             {
-                this.perfectHashMap = ImmutableDictionary<Type, int>.Empty;
+                this.perfectHashMap = new Dictionary<Type, int>();
                 this.compileMethodPtr = compileMethodPtr;
             }
 
+            // Used only during compilation, not perf critical.
             public Type GetTypeFromIndex(int index)
             {
                 lock (this.lockObj)
                 {
-                    // yes, linear search. I just want this working for now.
+                    // yes, linear search :P
                     for (int i = 0; i < this.types.Count; ++i)
                     {
                         if (i == index)
@@ -852,6 +875,7 @@
                 throw new Exception($"No type found at index {index}");
             }
 
+            // Used only during container add, not perf critical.
             public void AddContainer(QuickInjectContainer container)
             {
                 lock (this.lockObj)
@@ -872,6 +896,8 @@
                 }
             }
 
+            // Used during type type resolution (and compilation), but it is perf critical
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
             public int GetUniqueId(Type t)
             {
                 if (!this.perfectHashMap.TryGetValue(t, out int value))
@@ -882,6 +908,7 @@
                 return value;
             }
 
+            // Used during type resolution, but is only hit when cache fails, not perf critical.
             [MethodImpl(MethodImplOptions.NoInlining)]
             private void SlowLookup(Type t, out int value)
             {
@@ -897,11 +924,19 @@
                             container.jumpTable = container.jumpTable.Add(this.compileMethodPtr);
                         }
 
+                        var tmpDict = new Dictionary<Type, int>();
+                        foreach (var pair in this.perfectHashMap)
+                        {
+                            tmpDict.Add(pair.Key, pair.Value);
+                        }
+
+                        tmpDict.Add(t, value);
+
                         // prevent this.perfectHashMap is assigned after the jump tables are setup
                         // gotta think about ARM :)
                         Thread.MemoryBarrier();
 
-                        this.perfectHashMap = this.perfectHashMap.Add(t, value);
+                        this.perfectHashMap = tmpDict;
                     }
                 }
             }
