@@ -11,7 +11,7 @@
         {
             var container = new QuickInjectContainer();
 
-            container.Resolve<B>();
+            container.Resolve<B>(null);
 
             Foo(container);
         }
@@ -24,7 +24,7 @@
 
             for (int i = 0; i < 100000000; ++i)
             {
-                container.Resolve<B>();
+                container.Resolve<B>(null);
             }
 
             sw.Stop();

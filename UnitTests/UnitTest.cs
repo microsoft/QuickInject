@@ -50,7 +50,6 @@ namespace UnitTests
 
             var b = container.Resolve<B>();
 
-            Console.ReadKey();
             Assert.AreNotEqual(b.A1, b.A2);
         }
     }

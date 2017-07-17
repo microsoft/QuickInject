@@ -2,7 +2,6 @@
 {
     using System;
     using System.Collections.Generic;
-    using System.Collections.Immutable;
     using System.Linq;
     using System.Linq.Expressions;
     using System.Reflection;
@@ -36,13 +35,9 @@
 
         private static readonly Type ExceptionType = typeof(Exception);
 
-        private static readonly Type ImmutableArrayType = typeof(ImmutableArray<IntPtr>);
-
         private static readonly MethodInfo CompileMethodInfo = typeof(QuickInjectContainer).GetMethod("Compile", BindingFlags.NonPublic | BindingFlags.Instance);
 
         private static readonly FieldInfo JumpTableFieldInfo = QuickInjectContainerType.GetField("jumpTable", BindingFlags.Instance | BindingFlags.NonPublic);
-
-        private static readonly MethodInfo ImmutableArrayGetItemMethodInfo = ImmutableArrayType.GetMethod("get_Item");
 
         private static readonly MethodInfo GetValueMethodInfo = LifetimeManagerType.GetMethod("GetValue", new Type[] { ObjectType });
 
@@ -82,9 +77,9 @@
 
         private Dictionary<Type, PropertyInfo[]> propertyInfoTable = new Dictionary<Type, PropertyInfo[]>();
 
-        private ImmutableArray<IntPtr> jumpTable = ImmutableArray<IntPtr>.Empty;
+        private IntPtr[] jumpTable;
 
-        private ImmutableList<DynamicMethod> dynamicMethods = ImmutableList<DynamicMethod>.Empty;
+        private List<DynamicMethod> dynamicMethods = new List<DynamicMethod>(); // only used to keep GC references to the build plans
 
         private IPropertySelectorPolicy propertySelectorPolicy;
 
@@ -254,6 +249,11 @@
 #endif
 
             return this.Resolve(t, resolutionContext: null);
+        }
+
+        public object ResolveInternal(LifetimeManager[] lifetimeManagers, object[] constants, object resolutionContext, int typeIndex)
+        {
+            return CallIndirect(this, lifetimeManagers, constants, resolutionContext, typeIndex, this.jumpTable[typeIndex]);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -459,6 +459,7 @@
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static extern object CallIndirect(QuickInjectContainer container, LifetimeManager[] lifetimeManagers, object[] constants, object resolutionContext, int index, IntPtr nativeFunctionPointer);
 
+        // called indirectly so it not used here, but is absolutely needed
         [MethodImpl(MethodImplOptions.NoInlining)]
         private object Compile(LifetimeManager[] lifetimeManagers, object[] constants, object resolutionContext, int typeIndex)
         {
@@ -550,8 +551,8 @@
 
                 Logger.CompilationDataStructureCopyStart(typeString);
 
-                this.jumpTable = this.jumpTable.SetItem(typeIndex, methodPtr);
-                this.dynamicMethods = this.dynamicMethods.Add(dynamicMethod);
+                this.jumpTable[typeIndex] = methodPtr;
+                this.dynamicMethods.Add(dynamicMethod);
 
                 Logger.CompilationDataStructureCopyStop(typeString);
 
@@ -615,9 +616,9 @@
             ilGenerator.Emit(OpCodes.Ldarg_3);
             ilGenerator.Emit(OpCodes.Ldc_I4, index);
             ilGenerator.Emit(OpCodes.Ldarg_0);
-            ilGenerator.Emit(OpCodes.Ldflda, JumpTableFieldInfo);
+            ilGenerator.Emit(OpCodes.Ldfld, JumpTableFieldInfo);
             ilGenerator.Emit(OpCodes.Ldc_I4, index);
-            ilGenerator.Emit(OpCodes.Call, ImmutableArrayGetItemMethodInfo);
+            ilGenerator.Emit(OpCodes.Ldelem_I);
             ilGenerator.EmitCalli(OpCodes.Calli, CallingConventions.Standard, ReturnType, ParameterTypes, null);
         }
 
@@ -688,8 +689,13 @@
 
         private void ClearBuildPlans()
         {
-            this.jumpTable = ImmutableArray<IntPtr>.Empty;
-            this.dynamicMethods = ImmutableList<DynamicMethod>.Empty;
+            var compileMethodPtr = CompileMethodInfo.MethodHandle.GetFunctionPointer();
+            for (int i = 0; i < this.jumpTable.Length; ++i)
+            {
+                this.jumpTable[i] = compileMethodPtr;
+            }
+
+            this.dynamicMethods = new List<DynamicMethod>();
 
             var childrenStack = new Stack<QuickInjectContainer>();
             childrenStack.Push(this);
@@ -698,8 +704,12 @@
             {
                 var curr = childrenStack.Pop();
 
-                curr.jumpTable = ImmutableArray<IntPtr>.Empty;
-                curr.dynamicMethods = ImmutableList<DynamicMethod>.Empty;
+                for (int i = 0; i < curr.jumpTable.Length; ++i)
+                {
+                    curr.jumpTable[i] = compileMethodPtr;
+                }
+
+                curr.dynamicMethods = new List<DynamicMethod>();
 
                 foreach (var child in curr.children)
                 {
@@ -839,13 +849,13 @@
         /// regenerate the build plan in the context of the container. Of course, the next logical step here would be
         /// to check if we really need to generate a new build plan or if we can point to the one in the parent.
         /// </summary>
-        private sealed class PerfectHashProvider
+        private struct PerfectHashProvider
         {
-            private readonly List<Type> types = new List<Type>();
+            private readonly List<Type> types;
 
-            private readonly object lockObj = new object();
+            private readonly object lockObj;
 
-            private readonly List<QuickInjectContainer> containers = new List<QuickInjectContainer>();
+            private readonly List<QuickInjectContainer> containers;
 
             private readonly IntPtr compileMethodPtr;
 
@@ -853,6 +863,9 @@
 
             public PerfectHashProvider(IntPtr compileMethodPtr)
             {
+                this.types = new List<Type>();
+                this.lockObj = new object();
+                this.containers = new List<QuickInjectContainer>();
                 this.perfectHashMap = new Dictionary<Type, int>();
                 this.compileMethodPtr = compileMethodPtr;
             }
@@ -880,11 +893,11 @@
             {
                 lock (this.lockObj)
                 {
-                    var tmp = ImmutableArray<IntPtr>.Empty;
+                    var tmpArr = new IntPtr[this.types.Count];
 
                     for (int i = 0; i < this.types.Count; ++i)
                     {
-                        tmp = tmp.Add(this.compileMethodPtr);
+                        tmpArr[i] = this.compileMethodPtr;
                     }
 
                     this.containers.Add(container);
@@ -892,7 +905,7 @@
                     // jump tables need to be setup after adding the container
                     Thread.MemoryBarrier();
 
-                    container.jumpTable = tmp;
+                    container.jumpTable = tmpArr;
                 }
             }
 
@@ -919,11 +932,6 @@
                         this.types.Add(t);
                         value = this.types.Count - 1;
 
-                        foreach (var container in this.containers)
-                        {
-                            container.jumpTable = container.jumpTable.Add(this.compileMethodPtr);
-                        }
-
                         var tmpDict = new Dictionary<Type, int>();
                         foreach (var pair in this.perfectHashMap)
                         {
@@ -931,6 +939,20 @@
                         }
 
                         tmpDict.Add(t, value);
+
+                        foreach (var container in this.containers)
+                        {
+                            var tmpArr = new IntPtr[container.jumpTable.Length + 1]; // or this.types.Count (same thing)
+
+                            for (int i = 0; i < container.jumpTable.Length; ++i)
+                            {
+                                tmpArr[i] = container.jumpTable[i];
+                            }
+
+                            tmpArr[container.jumpTable.Length] = this.compileMethodPtr; // and add the new one
+
+                            container.jumpTable = tmpArr;
+                        }
 
                         // prevent this.perfectHashMap is assigned after the jump tables are setup
                         // gotta think about ARM :)
