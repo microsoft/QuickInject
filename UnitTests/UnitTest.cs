@@ -23,6 +23,8 @@ namespace UnitTests
             var lifetimeManager = new TestLifetimeManager();
             container.RegisterType<A>(lifetimeManager);
 
+            container.SealContainer();
+
             var instance = new A { Value = 43 };
 
             lifetimeManager.SetValue(instance);
@@ -38,6 +40,8 @@ namespace UnitTests
             var lifetimeManager = new TestLifetimeManager();
             container.RegisterType<A>(lifetimeManager);
 
+            container.SealContainer();
+
             container.Resolve<A>(); // side-effect is that lifetimeManager should have the right value
 
             Assert.AreEqual(42, (lifetimeManager.GetValue() as A).Value);
@@ -47,6 +51,7 @@ namespace UnitTests
         public void ValidateUniqueInstancesOfSameType()
         {
             var container = new QuickInjectContainer();
+            container.SealContainer();
 
             var b = container.Resolve<B>();
 
@@ -68,6 +73,8 @@ namespace UnitTests
             var lifetimeManager = new TestLifetimeManager();
             container.RegisterType<IA>(lifetimeManager);
 
+            container.SealContainer();
+
             var a = new A();
 
             lifetimeManager.SetValue(a);
@@ -84,6 +91,8 @@ namespace UnitTests
             container.RegisterType<C>(lifetimeManager);
             container.RegisterType<IA>(new ParameterizedLambdaExpressionInjectionFactory<C, IA>(new GetACodeProvider()));
 
+            container.SealContainer();
+
             var ia = container.Resolve<IA>();
 
             Assert.AreSame((lifetimeManager.GetValue() as C).PropToVerify, ia);
@@ -96,10 +105,10 @@ namespace UnitTests
 
             var c = new C(new B(new A(), new A()), new A());
 
-            var lifetimeManager = new TestLifetimeManager();
-
             container.RegisterInstance(c);
             container.RegisterType<IA>(new ParameterizedLambdaExpressionInjectionFactory<C, IA>(new GetACodeProvider()));
+
+            container.SealContainer();
 
             var ia = container.Resolve<IA>();
 
@@ -118,6 +127,7 @@ namespace UnitTests
             container.RegisterType<IA>(new ParameterizedLambdaExpressionInjectionFactory<C, IA>(new GetACodeProvider()));
             container.RegisterType<D>(new ParameterizedLambdaExpressionInjectionFactory<C, D>(new GetDCodeProvider()));
 
+            container.SealContainer();
 
             var e = container.Resolve<E>();
 
@@ -134,6 +144,8 @@ namespace UnitTests
             container.RegisterType<IA>(new ParameterizedLambdaExpressionInjectionFactory<C, IA>(new ExceptionThrowingCodeProvider()));
             container.RegisterType<F>(lifetimeManager);
 
+            container.SealContainer();
+
             try
             {
                 container.Resolve<F>();
@@ -142,6 +154,22 @@ namespace UnitTests
             {
                 Assert.AreEqual(true, lifetimeManager.RecoverCalled);
             }
+        }
+
+        [TestMethod]
+        [ExpectedException(typeof(Exception), "Container is sealed and cannot accept new registrations")]
+        public void TestSealContainer()
+        {
+            var container = new QuickInjectContainer();
+
+            var lifetimeManager = new SynchronizedTestLifetimeManager();
+            container.RegisterType<IA>(new ParameterizedLambdaExpressionInjectionFactory<C, IA>(new ExceptionThrowingCodeProvider()));
+
+            container.SealContainer();
+
+            container.RegisterType<F>(lifetimeManager);
+
+            container.Resolve<F>();
         }
     }
 }
