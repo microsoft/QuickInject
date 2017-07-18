@@ -44,13 +44,49 @@ namespace UnitTests
         }
 
         [TestMethod]
-        public void ValidateSetValueSimpleConstructor()
+        public void ValidateUniqueInstancesOfSameType()
         {
             var container = new QuickInjectContainer();
 
             var b = container.Resolve<B>();
 
             Assert.AreNotEqual(b.A1, b.A2);
+        }
+
+        [TestMethod]
+        [ExpectedException(typeof(Exception), "Cannot construct type: UnitTests.IA")]
+        public void ThrowOnUnconstructableTypes()
+        {
+            var container = new QuickInjectContainer();
+            container.Resolve<IA>();
+        }
+
+        [TestMethod]
+        public void DoNotThrowOnUnconstructableTypeIfLifetimeManagerIsSet()
+        {
+            var container = new QuickInjectContainer();
+            var lifetimeManager = new TestLifetimeManager();
+            container.RegisterType<IA>(lifetimeManager);
+
+            var a = new A();
+
+            lifetimeManager.SetValue(a);
+
+            Assert.AreSame(a, container.Resolve<IA>());
+        }
+
+        [TestMethod]
+        public void ParameterizedCodeProviderReturnsInstanceThroughItsFactory()
+        {
+            var container = new QuickInjectContainer();
+            var lifetimeManager = new TestLifetimeManager();
+
+            container.RegisterType<C>(lifetimeManager);
+            container.RegisterType<IA>(new ParameterizedLambdaExpressionInjectionFactory<C, IA>(new RegularCodeProvider()));
+
+            var ia = container.Resolve<IA>();
+
+            Assert.AreSame((lifetimeManager.GetValue() as C).PropToVerify, ia);
         }
     }
 }

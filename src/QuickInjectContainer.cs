@@ -133,7 +133,7 @@
         }
 
         [MethodImpl(MethodImplOptions.NoInlining)]
-        public static void ThrowNonConstructableType(IntPtr typeHandle)
+        public static object ThrowNonConstructableType(IntPtr typeHandle)
         {
             throw new Exception("Cannot construct type: " + GetTypeFromHandle(typeHandle));
         }
@@ -553,39 +553,7 @@
 
                 EmitProlog(ilGenerator, this.GetLifetimeIndexFor(lifetime), emitExceptionHandling, GetValueMethodInfo, lifetime.GetType(), ObjectType, ref label);
 
-                Logger.CompilationDependencyAnalysisStart(typeString);
-
-                var immediateDependencies = this.ImmediateDependencies(t, out ConstructorInfo ctor).ToArray();
-
-                Logger.CompilationDependencyAnalysisStop(typeString);
-
-                if (ctor != null)
-                {
-                    var extendedPrologResolveCallsMap = this.CreateExtendedPrologResolveCallsMap(immediateDependencies);
-
-                    foreach (var pair in extendedPrologResolveCallsMap)
-                    {
-                        var type = pair.Key;
-                        var index = pair.Value;
-
-                        ilGenerator.DeclareLocal(type);
-
-                        this.WriteResolveInternalCall(ilGenerator, t);
-
-                        ilGenerator.Emit(OpCodes.Stloc, index);
-                    }
-
-                    foreach (var immediateDependency in immediateDependencies)
-                    {
-                        this.CodeGen(ilGenerator, immediateDependency, extendedPrologResolveCallsMap, topLevelCodeGen: false);
-                    }
-
-                    ilGenerator.Emit(OpCodes.Newobj, ctor);
-                }
-                else
-                {
-                    this.CodeGen(ilGenerator, t, EmptyDict, topLevelCodeGen: true);
-                }
+                this.CodeGen(ilGenerator, t, EmptyDict, topLevelCodeGen: true);
 
                 EmitEpilog(ilGenerator, emitExceptionHandling, SetValueMethodInfo, lifetime.GetType().GetMethod("Recover"), RethrowExceptionMethodInfo, ExceptionType, ref label);
 
@@ -635,6 +603,11 @@
                     var parameterized = factoryExpression as ParameterizedLambdaExpressionInjectionFactoryMethodCallExpression;
                     if (parameterized != null)
                     {
+                        if (topLevelCodeGen)
+                        {
+                            dict = this.SetupExtendedProlog(ilGenerator, new Type[] { type });
+                        }
+
                         parameterized.GenerateCode(ilGenerator, dict);
                     }
                     else
@@ -647,7 +620,23 @@
             {
                 if (topLevelCodeGen)
                 {
-                    ilGenerator.Emit(OpCodes.Call, NonConstructableTypeMethodInfo); // returns object
+                    var immediateDependencies = this.ImmediateDependencies(type, out ConstructorInfo ctor).ToArray();
+                    var extendedPrologResolveCallsMap = this.SetupExtendedProlog(ilGenerator, immediateDependencies);
+
+                    if (ctor != null)
+                    {
+                        foreach (var immediateDependency in immediateDependencies)
+                        {
+                            this.CodeGen(ilGenerator, immediateDependency, extendedPrologResolveCallsMap, topLevelCodeGen: false);
+                        }
+
+                        ilGenerator.Emit(OpCodes.Newobj, ctor);
+                    }
+                    else
+                    {
+                        ilGenerator.Emit(IntPtr.Size == 4 ? OpCodes.Ldc_I4 : OpCodes.Ldc_I8, IntPtr.Size == 4 ? type.TypeHandle.Value.ToInt32() : type.TypeHandle.Value.ToInt64());
+                        ilGenerator.Emit(OpCodes.Call, NonConstructableTypeMethodInfo);
+                    }
                 }
                 else
                 {
@@ -671,6 +660,25 @@
             ilGenerator.Emit(OpCodes.Ldc_I4, index);
             ilGenerator.Emit(OpCodes.Ldelem_I);
             ilGenerator.EmitCalli(OpCodes.Calli, CallingConventions.Standard, ReturnType, ParameterTypes, null);
+        }
+
+        private Dictionary<Type, int> SetupExtendedProlog(ILGenerator ilGenerator, IEnumerable<Type> types)
+        {
+            var extendedPrologResolveCallsMap = this.CreateExtendedPrologResolveCallsMap(types);
+
+            foreach (var pair in extendedPrologResolveCallsMap)
+            {
+                var type = pair.Key;
+                var index = pair.Value;
+
+                ilGenerator.DeclareLocal(type);
+
+                this.WriteResolveInternalCall(ilGenerator, type);
+
+                ilGenerator.Emit(OpCodes.Stloc, index);
+            }
+
+            return extendedPrologResolveCallsMap;
         }
 
         private IEnumerable<Type> ImmediateDependencies(Type type, out ConstructorInfo ctor)
@@ -715,7 +723,7 @@
                     {
                         if (!typeDict.ContainsKey(dependentType))
                         {
-                            typeDict.Add(type, index);
+                            typeDict.Add(dependentType, index);
                             index++;
                         }
                     }

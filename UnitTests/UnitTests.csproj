@@ -50,6 +50,10 @@
   <ItemGroup>
     <Compile Include="A.cs" />
     <Compile Include="B.cs" />
+    <Compile Include="C.cs" />
+    <Compile Include="ExceptionThrowingCodeProvider.cs" />
+    <Compile Include="IA.cs" />
+    <Compile Include="RegularCodeProvider.cs" />
     <Compile Include="TestLifetimeManager.cs" />
     <Compile Include="UnitTest.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
