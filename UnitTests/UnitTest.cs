@@ -171,5 +171,19 @@ namespace UnitTests
 
             container.Resolve<F>();
         }
+
+        [TestMethod]
+        public void TestResolutionContext()
+        {
+            var container = new QuickInjectContainer();
+            container.RegisterTypeAsResolutionContext<A>();
+
+            var context = new A();
+
+            var b = container.Resolve<B>(context);
+
+            Assert.AreSame(b.A1, b.A2);
+            Assert.AreSame(b.A1, context);
+        }
     }
 }
