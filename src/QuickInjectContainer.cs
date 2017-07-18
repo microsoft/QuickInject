@@ -35,6 +35,8 @@
 
         private static readonly Type ExceptionType = typeof(Exception);
 
+        private static readonly MethodInfo GetUnderlyingArrayMethodInfo = typeof(GrowableArray<IntPtr>).GetMethod("get_UnderlyingArray", BindingFlags.Public | BindingFlags.Instance);
+
         private static readonly MethodInfo CompileMethodInfo = typeof(QuickInjectContainer).GetMethod("Compile", BindingFlags.NonPublic | BindingFlags.Instance);
 
         private static readonly FieldInfo JumpTableFieldInfo = QuickInjectContainerType.GetField("jumpTable", BindingFlags.Instance | BindingFlags.NonPublic);
@@ -77,7 +79,7 @@
 
         private Dictionary<Type, PropertyInfo[]> propertyInfoTable = new Dictionary<Type, PropertyInfo[]>();
 
-        private IntPtr[] jumpTable;
+        private GrowableArray<IntPtr> jumpTable;
 
         private List<DynamicMethod> dynamicMethods = new List<DynamicMethod>(); // only used to keep GC references to the build plans
 
@@ -86,6 +88,8 @@
         private ExtensionImpl extensionImpl;
 
         private PerfectHashProvider perfectHashProvider;
+
+        private bool isSealed;
 
         public QuickInjectContainer()
         {
@@ -136,6 +140,11 @@
 
         public IQuickInjectContainer RegisterType(Type from, Type to, LifetimeManager lifetimeManager, InjectionMember injectionMember = null)
         {
+            if (this.isSealed)
+            {
+                throw new Exception("Container is sealed and cannot accept new registrations");
+            }
+
             if (to == null)
             {
                 throw new ArgumentNullException(nameof(to));
@@ -174,8 +183,6 @@
                 {
                     this.factoryExpressionTable.AddOrUpdate(to, injectionMember.GenExpression(to, this));
                 }
-
-                this.ClearBuildPlans();
             }
 
             return this;
@@ -183,6 +190,11 @@
 
         public IQuickInjectContainer RegisterInstance(Type t, object instance, LifetimeManager lifetimeManager)
         {
+            if (this.isSealed)
+            {
+                throw new Exception("Container is sealed and cannot accept new registrations");
+            }
+
             if (instance == null)
             {
                 throw new ArgumentNullException(nameof(instance));
@@ -219,7 +231,6 @@
                 this.constantIndexTable.Add(t, index2);
 
                 this.factoryExpressionTable.AddOrUpdate(t, Expression.Constant(instance));
-                this.ClearBuildPlans();
             }
 
             return this;
@@ -227,13 +238,17 @@
 
         public IQuickInjectContainer RegisterTypeAsResolutionContext<T>()
         {
+            if (this.isSealed)
+            {
+                throw new Exception("Container is sealed and cannot accept new registrations");
+            }
+
             Type type = typeof(T);
             lock (this.compileLock)
             {
                 this.factoryExpressionTable.AddOrUpdate(type, new ResolveResolutionContextExpression());
                 this.lifetimeTable.Remove(type);
                 this.typeMappingTable.Remove(type);
-                this.ClearBuildPlans();
             }
 
             return this;
@@ -343,6 +358,39 @@
             }
 
             return existing;
+        }
+
+        public void SealContainer()
+        {
+            var compileMethodPtr = CompileMethodInfo.MethodHandle.GetFunctionPointer();
+            for (int i = 0; i < this.jumpTable.Count; ++i)
+            {
+                this.jumpTable[i] = compileMethodPtr;
+            }
+
+            this.dynamicMethods = new List<DynamicMethod>();
+
+            var childrenStack = new Stack<QuickInjectContainer>();
+            childrenStack.Push(this);
+
+            while (childrenStack.Count != 0)
+            {
+                var curr = childrenStack.Pop();
+
+                for (int i = 0; i < curr.jumpTable.Count; ++i)
+                {
+                    curr.jumpTable[i] = compileMethodPtr;
+                }
+
+                curr.dynamicMethods = new List<DynamicMethod>();
+
+                foreach (var child in curr.children)
+                {
+                    childrenStack.Push(child);
+                }
+            }
+
+            GC.Collect();
         }
 
         private static Type GetTypeFromHandle(IntPtr handle)
@@ -616,7 +664,8 @@
             ilGenerator.Emit(OpCodes.Ldarg_3);
             ilGenerator.Emit(OpCodes.Ldc_I4, index);
             ilGenerator.Emit(OpCodes.Ldarg_0);
-            ilGenerator.Emit(OpCodes.Ldfld, JumpTableFieldInfo);
+            ilGenerator.Emit(OpCodes.Ldflda, JumpTableFieldInfo);
+            ilGenerator.Emit(OpCodes.Call, GetUnderlyingArrayMethodInfo);
             ilGenerator.Emit(OpCodes.Ldc_I4, index);
             ilGenerator.Emit(OpCodes.Ldelem_I);
             ilGenerator.EmitCalli(OpCodes.Calli, CallingConventions.Standard, ReturnType, ParameterTypes, null);
@@ -685,37 +734,6 @@
             this.Registering += (sender, args) => { };
             this.RegisteringInstance += (sender, args) => { };
             this.ChildContainerCreated += (sender, args) => { };
-        }
-
-        private void ClearBuildPlans()
-        {
-            var compileMethodPtr = CompileMethodInfo.MethodHandle.GetFunctionPointer();
-            for (int i = 0; i < this.jumpTable.Length; ++i)
-            {
-                this.jumpTable[i] = compileMethodPtr;
-            }
-
-            this.dynamicMethods = new List<DynamicMethod>();
-
-            var childrenStack = new Stack<QuickInjectContainer>();
-            childrenStack.Push(this);
-
-            while (childrenStack.Count != 0)
-            {
-                var curr = childrenStack.Pop();
-
-                for (int i = 0; i < curr.jumpTable.Length; ++i)
-                {
-                    curr.jumpTable[i] = compileMethodPtr;
-                }
-
-                curr.dynamicMethods = new List<DynamicMethod>();
-
-                foreach (var child in curr.children)
-                {
-                    childrenStack.Push(child);
-                }
-            }
         }
 
         [MethodImpl(MethodImplOptions.NoInlining)]
@@ -893,7 +911,7 @@
             {
                 lock (this.lockObj)
                 {
-                    var tmpArr = new IntPtr[this.types.Count];
+                    var tmpArr = new GrowableArray<IntPtr>(Math.Max(this.types.Count, 16)); // 16 is default size
 
                     for (int i = 0; i < this.types.Count; ++i)
                     {
@@ -942,16 +960,7 @@
 
                         foreach (var container in this.containers)
                         {
-                            var tmpArr = new IntPtr[container.jumpTable.Length + 1]; // or this.types.Count (same thing)
-
-                            for (int i = 0; i < container.jumpTable.Length; ++i)
-                            {
-                                tmpArr[i] = container.jumpTable[i];
-                            }
-
-                            tmpArr[container.jumpTable.Length] = this.compileMethodPtr; // and add the new one
-
-                            container.jumpTable = tmpArr;
+                            container.jumpTable.Add(this.compileMethodPtr);
                         }
 
                         // prevent this.perfectHashMap is assigned after the jump tables are setup
