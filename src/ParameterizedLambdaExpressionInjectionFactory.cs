@@ -2,7 +2,6 @@
 {
     using System;
     using System.Collections.Generic;
-    using System.Linq.Expressions;
 
     public sealed class ParameterizedLambdaExpressionInjectionFactory<TResult> : InjectionMember
     {
@@ -16,7 +15,7 @@
 
     public sealed class ParameterizedLambdaExpressionInjectionFactory<T1, TResult> : InjectionMember
     {
-        public ParameterizedLambdaExpressionInjectionFactory(Expression<Func<T1, TResult>> func, ICodeProvider codeProvider = null)
+        public ParameterizedLambdaExpressionInjectionFactory(ICodeProvider codeProvider = null)
         {
             this.ResultType = typeof(TResult);
             this.DependentTypes = new List<Type> { typeof(T1) };

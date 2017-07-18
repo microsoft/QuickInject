@@ -390,6 +390,8 @@
                 }
             }
 
+            this.isSealed = true;
+
             GC.Collect();
         }
 
