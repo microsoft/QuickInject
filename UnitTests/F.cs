@@ -4,7 +4,9 @@
     {
         public F(IA a)
         {
-            
+            this.Value = a;
         }
+
+        public IA Value { get; }
     }
 }

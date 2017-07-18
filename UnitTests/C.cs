@@ -18,6 +18,13 @@
             return this.PropToVerify;
         }
 
+        public IA GetA2()
+        {
+            var a = new A { Value = 44 };
+            this.PropToVerify = a;
+            return this.PropToVerify;
+        }
+
         public D GetD()
         {
             this.PropToVerify2 = new D(new A(), new A());

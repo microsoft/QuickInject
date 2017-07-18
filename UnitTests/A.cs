@@ -1,6 +1,6 @@
 ﻿namespace UnitTests
 {
-    internal sealed class A : IA
+    internal class A : IA
     {
         public A()
         {

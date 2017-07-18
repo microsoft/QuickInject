@@ -877,7 +877,7 @@
         /// regenerate the build plan in the context of the container. Of course, the next logical step here would be
         /// to check if we really need to generate a new build plan or if we can point to the one in the parent.
         /// </summary>
-        private struct PerfectHashProvider
+        private sealed class PerfectHashProvider
         {
             private readonly List<Type> types;
 

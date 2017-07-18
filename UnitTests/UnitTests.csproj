@@ -49,12 +49,14 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="A.cs" />
+    <Compile Include="A2.cs" />
     <Compile Include="B.cs" />
     <Compile Include="C.cs" />
     <Compile Include="D.cs" />
     <Compile Include="E.cs" />
     <Compile Include="ExceptionThrowingCodeProvider.cs" />
     <Compile Include="F.cs" />
+    <Compile Include="GetA2CodeProvider.cs" />
     <Compile Include="GetDCodeProvider.cs" />
     <Compile Include="IA.cs" />
     <Compile Include="GetACodeProvider.cs" />

@@ -185,5 +185,39 @@ namespace UnitTests
             Assert.AreSame(b.A1, b.A2);
             Assert.AreSame(b.A1, context);
         }
+
+        [TestMethod]
+        public void ChildContainerOverridingARegistrationGetsADifferentPlan()
+        {
+            var container = new QuickInjectContainer();
+            container.RegisterType<IA>(new ParameterizedLambdaExpressionInjectionFactory<C, IA>(new GetACodeProvider()));
+
+            var childContainer = container.CreateChildContainer();
+
+            childContainer.RegisterType<A, A2>();
+            var b = container.Resolve<B>();
+
+            var b2 = childContainer.Resolve<B>();
+
+            Assert.AreEqual(42, b.A1.Value);
+            Assert.AreEqual(44, b2.A1.Value);
+        }
+
+        [TestMethod]
+        public void ChildContainerOverridingARegistrationGetsADifferentPlan2()
+        {
+            var container = new QuickInjectContainer();
+            container.RegisterType<IA>(new ParameterizedLambdaExpressionInjectionFactory<C, IA>(new GetACodeProvider()));
+
+            var childContainer = container.CreateChildContainer();
+
+            childContainer.RegisterType<IA>(new ParameterizedLambdaExpressionInjectionFactory<C, IA>(new GetA2CodeProvider()));
+            var f = container.Resolve<F>();
+
+            var f2 = childContainer.Resolve<F>();
+
+            Assert.AreEqual(42, f.Value.Value);
+            Assert.AreEqual(44, f2.Value.Value);
+        }
     }
 }
