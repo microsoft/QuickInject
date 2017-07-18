@@ -93,6 +93,15 @@
 
         public QuickInjectContainer()
         {
+            // Lifetime managers is empty at QuickInject start (across the entire program, not just the instance)
+            lock (StaticLock)
+            {
+                if (LifetimeManagers.Empty)
+                {
+                    LifetimeManagers.Add(TransientLifetimeManager.Default);
+                }
+            }
+
             RuntimeHelpers.PrepareMethod(CompileMethodInfo.MethodHandle);
             this.InitializeContainer();
         }
@@ -513,15 +522,6 @@
         [MethodImpl(MethodImplOptions.NoInlining)]
         private object Compile(LifetimeManager[] lifetimeManagers, object[] constants, object resolutionContext, int typeIndex)
         {
-            // Lifetime managers is empty at QuickInject start (across the entire program, not just the instance)
-            lock (StaticLock)
-            {
-                if (LifetimeManagers.Empty)
-                {
-                    LifetimeManagers.Add(TransientLifetimeManager.Default);
-                }
-            }
-
             var t = this.perfectHashProvider.GetTypeFromIndex(typeIndex);
             string typeString = t.ToString();
 

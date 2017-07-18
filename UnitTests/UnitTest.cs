@@ -82,11 +82,46 @@ namespace UnitTests
             var lifetimeManager = new TestLifetimeManager();
 
             container.RegisterType<C>(lifetimeManager);
-            container.RegisterType<IA>(new ParameterizedLambdaExpressionInjectionFactory<C, IA>(new RegularCodeProvider()));
+            container.RegisterType<IA>(new ParameterizedLambdaExpressionInjectionFactory<C, IA>(new GetACodeProvider()));
 
             var ia = container.Resolve<IA>();
 
             Assert.AreSame((lifetimeManager.GetValue() as C).PropToVerify, ia);
+        }
+
+        [TestMethod]
+        public void ParameterizedCodeProviderReturnsInstanceThroughItsFactoryInstance()
+        {
+            var container = new QuickInjectContainer();
+
+            var c = new C(new B(new A(), new A()), new A());
+
+            var lifetimeManager = new TestLifetimeManager();
+
+            container.RegisterInstance(c);
+            container.RegisterType<IA>(new ParameterizedLambdaExpressionInjectionFactory<C, IA>(new GetACodeProvider()));
+
+            var ia = container.Resolve<IA>();
+
+            Assert.AreSame(c.PropToVerify, ia);
+        }
+
+        [TestMethod]
+        public void ParameterizedCodeProviderReturnsInstanceThroughItsFactoryInstanceRecursive()
+        {
+            var container = new QuickInjectContainer();
+
+            var lifetimeManager = new TestLifetimeManager();
+
+            container.RegisterType<C>(lifetimeManager);
+
+            container.RegisterType<IA>(new ParameterizedLambdaExpressionInjectionFactory<C, IA>(new GetACodeProvider()));
+            container.RegisterType<D>(new ParameterizedLambdaExpressionInjectionFactory<C, D>(new GetDCodeProvider()));
+
+
+            var e = container.Resolve<E>();
+
+            Assert.AreSame((lifetimeManager.GetValue() as C).PropToVerify2, e.D);
         }
     }
 }
