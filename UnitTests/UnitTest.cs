@@ -123,5 +123,25 @@ namespace UnitTests
 
             Assert.AreSame((lifetimeManager.GetValue() as C).PropToVerify2, e.D);
         }
+
+        [TestMethod]
+        [ExpectedException(typeof(Exception), "This should not hang the unit test")]
+        public void ExceptionThrowingFactoryMethodDoesNotDeadLock()
+        {
+            var container = new QuickInjectContainer();
+
+            var lifetimeManager = new SynchronizedTestLifetimeManager();
+            container.RegisterType<IA>(new ParameterizedLambdaExpressionInjectionFactory<C, IA>(new ExceptionThrowingCodeProvider()));
+            container.RegisterType<F>(lifetimeManager);
+
+            try
+            {
+                container.Resolve<F>();
+            }
+            finally
+            {
+                Assert.AreEqual(true, lifetimeManager.RecoverCalled);
+            }
+        }
     }
 }

@@ -54,9 +54,11 @@
     <Compile Include="D.cs" />
     <Compile Include="E.cs" />
     <Compile Include="ExceptionThrowingCodeProvider.cs" />
+    <Compile Include="F.cs" />
     <Compile Include="GetDCodeProvider.cs" />
     <Compile Include="IA.cs" />
     <Compile Include="GetACodeProvider.cs" />
+    <Compile Include="SynchronizedTestLifetimeManager.cs" />
     <Compile Include="TestLifetimeManager.cs" />
     <Compile Include="UnitTest.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
