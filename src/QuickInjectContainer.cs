@@ -377,6 +377,8 @@
                 this.jumpTable[i] = compileMethodPtr;
             }
 
+            this.dynamicMethods.Clear();
+            this.dynamicMethods = null;
             this.dynamicMethods = new List<DynamicMethod>();
 
             var childrenStack = new Stack<QuickInjectContainer>();
@@ -391,6 +393,8 @@
                     curr.jumpTable[i] = compileMethodPtr;
                 }
 
+                curr.dynamicMethods.Clear();
+                curr.dynamicMethods = null;
                 curr.dynamicMethods = new List<DynamicMethod>();
 
                 foreach (var child in curr.children)

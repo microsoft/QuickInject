@@ -218,6 +218,22 @@ namespace UnitTests
 
             Assert.AreEqual(42, f.Value.Value);
             Assert.AreEqual(44, f2.Value.Value);
+
+            container.SealContainer();
+
+            GC.Collect();
+
+            f = container.Resolve<F>();
+            f2 = childContainer.Resolve<F>();
+            container.SealContainer();
+
+            GC.Collect();
+
+            container.Resolve<F>();
+            childContainer.Resolve<F>();
+
+            Assert.AreEqual(42, f.Value.Value);
+            Assert.AreEqual(44, f2.Value.Value);
         }
     }
 }
