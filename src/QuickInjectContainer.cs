@@ -275,11 +275,6 @@
             return this.Resolve(t, resolutionContext: null);
         }
 
-        public object ResolveInternal(LifetimeManager[] lifetimeManagers, object[] constants, object resolutionContext, int typeIndex)
-        {
-            return CallIndirect(this, lifetimeManagers, constants, resolutionContext, typeIndex, this.jumpTable[typeIndex]);
-        }
-
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public object Resolve(Type t, object resolutionContext)
         {
@@ -378,8 +373,6 @@
             }
 
             this.dynamicMethods.Clear();
-            this.dynamicMethods = null;
-            this.dynamicMethods = new List<DynamicMethod>();
 
             var childrenStack = new Stack<QuickInjectContainer>();
             childrenStack.Push(this);
@@ -394,8 +387,6 @@
                 }
 
                 curr.dynamicMethods.Clear();
-                curr.dynamicMethods = null;
-                curr.dynamicMethods = new List<DynamicMethod>();
 
                 foreach (var child in curr.children)
                 {
