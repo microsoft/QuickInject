@@ -39,6 +39,8 @@
 
         private IPropertySelectorPolicy propertySelectorPolicy;
 
+        private bool disposed = false;
+
         public QuickInjectContainer()
         {
             this.extensionImpl = new ExtensionImpl(this);
@@ -130,7 +132,18 @@
 
         public void Dispose()
         {
-            
+            Dispose(true);
+        }
+
+        protected virtual void Dispose(bool disposing)
+        {
+            if (disposed) return;
+
+            if (disposing)
+            {
+                if (Logger != null) Logger.Dispose();
+                if (parentContainer != null) parentContainer.Dispose();
+            }
         }
         
         public IQuickInjectContainer CreateChildContainer()
