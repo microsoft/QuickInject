@@ -1,4 +1,4 @@
-﻿namespace QuickInject
+﻿namespace Microsoft.QuickInject
 {
     using System;
 
@@ -7,14 +7,14 @@
         public RegisterEventArgs(Type typeFrom, Type typeTo, LifetimeManager lifetimeManager)
         {
             this.TypeFrom = typeFrom;
-            this.TypeTo = typeTo;
+            this.TypeTo = typeTo ?? throw new ArgumentNullException(nameof(typeTo));
             this.LifetimeManager = lifetimeManager;
         }
-        
-        public Type TypeFrom { get; private set; }
 
-        public Type TypeTo { get; private set; }
+        public Type TypeFrom { get; }
 
-        public LifetimeManager LifetimeManager { get; private set; }
+        public Type TypeTo { get; }
+
+        public LifetimeManager LifetimeManager { get; }
     }
 }

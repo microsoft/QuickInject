@@ -1,45 +1,30 @@
-﻿namespace QuickInject
+﻿// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+
+namespace Microsoft.QuickInject
 {
     using System;
     using System.Collections.Generic;
-    using System.Linq;
     using System.Linq.Expressions;
+    using System.Reflection.Emit;
 
     internal sealed class ParameterizedLambdaExpressionInjectionFactoryMethodCallExpression : Expression
     {
-        private readonly LambdaExpression expression;
+        private readonly InjectionMember injectionMember;
 
-        public ParameterizedLambdaExpressionInjectionFactoryMethodCallExpression(Expression lambdaExpression)
+        private readonly int lifetimeManagerIndex;
+
+        public ParameterizedLambdaExpressionInjectionFactoryMethodCallExpression(InjectionMember injectionMember, int lifetimeManagerIndex)
         {
-            this.expression = (LambdaExpression)lambdaExpression;
+            this.injectionMember = injectionMember;
+            this.lifetimeManagerIndex = lifetimeManagerIndex;
         }
 
-        public IEnumerable<Type> DependentTypes
+        public IEnumerable<Type> DependentTypes => this.injectionMember.DependentTypes;
+
+        public void GenerateCode(ILGenerator ilGenerator, Dictionary<Type, int> localsMap)
         {
-            get
-            {
-                return this.expression.Parameters.Select(t => t.Type);
-            }
-        }
-
-        public Expression Resolve(Dictionary<Type, Stack<ParameterExpression>> dataProvider)
-        {
-            return new ParameterVisitor(dataProvider).Visit(this.expression.Body);
-        }
-
-        private sealed class ParameterVisitor : ExpressionVisitor
-        {
-            private readonly Dictionary<Type, Stack<ParameterExpression>> variableReplacementProvider;
-
-            public ParameterVisitor(Dictionary<Type, Stack<ParameterExpression>> dataProvider)
-            {
-                this.variableReplacementProvider = dataProvider;
-            }
-
-            protected override Expression VisitParameter(ParameterExpression node)
-            {
-                return this.variableReplacementProvider[node.Type].Peek();
-            }
+            this.injectionMember.CodeProvider?.GenerateCode(ilGenerator, this.lifetimeManagerIndex, localsMap);
         }
     }
 }

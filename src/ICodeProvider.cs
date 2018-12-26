@@ -5,10 +5,10 @@ namespace Microsoft.QuickInject
 {
     using System;
     using System.Collections.Generic;
-    using System.Reflection;
+    using System.Reflection.Emit;
 
-    public interface IPropertySelectorPolicy
+    public interface ICodeProvider
     {
-        IEnumerable<PropertyInfo> GetProperties(Type t);
+        void GenerateCode(ILGenerator ilgenerator, int lifetimeManagerIndex, Dictionary<Type, int> localsMap);
     }
 }

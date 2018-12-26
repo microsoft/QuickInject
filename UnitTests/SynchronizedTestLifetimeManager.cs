@@ -4,29 +4,39 @@
 namespace Microsoft.QuickInject
 {
     using System;
-    using System.Runtime.CompilerServices;
     using System.Threading;
 
-    public class ContainerControlledLifetimeManager : ContextInvariantLifetimeManager, IRequiresRecovery, IDisposable
+    public class SynchronizedTestLifetimeManager : ContextInvariantLifetimeManager, IRequiresRecovery
     {
         private readonly object lockObj = new object();
+
         private object value;
+
+        public bool RecoverCalled { get; private set; }
 
         public override object GetValue()
         {
-            var currentValue = this.value;
-            if (currentValue != null)
+            Monitor.Enter(this.lockObj);
+            var result = this.SynchronizedGetValue();
+
+            if (result != null)
             {
-                return currentValue;
+                Monitor.Exit(this.lockObj);
             }
 
-            return this.SynchronizedGetValue();
+            return result;
         }
 
         public override void SetValue(object newValue)
         {
-            Volatile.Write(ref this.value, newValue);
+            this.SynchronizedSetValue(newValue);
             this.TryExit();
+        }
+
+        public void Dispose()
+        {
+            this.Dispose(true);
+            GC.SuppressFinalize(this);
         }
 
         public override void RemoveValue()
@@ -37,12 +47,17 @@ namespace Microsoft.QuickInject
         public void Recover()
         {
             this.TryExit();
+            this.RecoverCalled = true;
         }
 
-        public void Dispose()
+        protected object SynchronizedGetValue()
         {
-            this.Dispose(true);
-            GC.SuppressFinalize(this);
+            return this.value;
+        }
+
+        protected void SynchronizedSetValue(object newValue)
+        {
+            this.value = newValue;
         }
 
         protected virtual void Dispose(bool disposing)
@@ -70,20 +85,6 @@ namespace Microsoft.QuickInject
                     // Noop here - we don't hold the lock and that's ok.
                 }
             }
-        }
-
-        [MethodImpl(MethodImplOptions.NoInlining)]
-        private object SynchronizedGetValue()
-        {
-            Monitor.Enter(this.lockObj);
-            var result = Volatile.Read<object>(ref this.value);
-
-            if (result != null)
-            {
-                Monitor.Exit(this.lockObj);
-            }
-
-            return result;
         }
     }
 }

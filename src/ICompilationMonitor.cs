@@ -4,11 +4,11 @@
 namespace Microsoft.QuickInject
 {
     using System;
-    using System.Collections.Generic;
-    using System.Reflection;
 
-    public interface IPropertySelectorPolicy
+    public interface ICompilationMonitor
     {
-        IEnumerable<PropertyInfo> GetProperties(Type t);
+        void Begin(Type t, object resolutionContext);
+
+        void End(Type t, object resolutionContext);
     }
 }

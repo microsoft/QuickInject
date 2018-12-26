@@ -3,12 +3,9 @@
 
 namespace Microsoft.QuickInject
 {
-    using System;
-    using System.Collections.Generic;
-    using System.Reflection;
+    using System.Linq.Expressions;
 
-    public interface IPropertySelectorPolicy
+    internal sealed class ResolveResolutionContextExpression : Expression
     {
-        IEnumerable<PropertyInfo> GetProperties(Type t);
     }
 }

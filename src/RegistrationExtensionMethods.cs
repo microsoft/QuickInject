@@ -1,4 +1,7 @@
-﻿namespace QuickInject
+﻿// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+
+namespace Microsoft.QuickInject
 {
     using System;
 
@@ -9,12 +12,14 @@
             return container.RegisterType(null, typeof(T), null, injectionMember);
         }
 
-        public static IQuickInjectContainer RegisterType<TFrom, TTo>(this IQuickInjectContainer container, InjectionMember injectionMember = null) where TTo : TFrom
+        public static IQuickInjectContainer RegisterType<TFrom, TTo>(this IQuickInjectContainer container, InjectionMember injectionMember = null)
+            where TTo : TFrom
         {
             return container.RegisterType(typeof(TFrom), typeof(TTo), null, injectionMember);
         }
 
-        public static IQuickInjectContainer RegisterType<TFrom, TTo>(this IQuickInjectContainer container, LifetimeManager lifetimeManager, InjectionMember injectionMember = null) where TTo : TFrom
+        public static IQuickInjectContainer RegisterType<TFrom, TTo>(this IQuickInjectContainer container, LifetimeManager lifetimeManager, InjectionMember injectionMember = null)
+            where TTo : TFrom
         {
             return container.RegisterType(typeof(TFrom), typeof(TTo), lifetimeManager, injectionMember);
         }
@@ -40,11 +45,13 @@
         }
 
         public static IQuickInjectContainer RegisterInstance<TInterface>(this IQuickInjectContainer container, TInterface instance)
+            where TInterface : class
         {
             return container.RegisterInstance(typeof(TInterface), instance, new ContainerControlledLifetimeManager());
         }
 
         public static IQuickInjectContainer RegisterInstance<TInterface>(this IQuickInjectContainer container, TInterface instance, LifetimeManager lifetimeManager)
+            where TInterface : class
         {
             return container.RegisterInstance(typeof(TInterface), instance, lifetimeManager);
         }
@@ -58,7 +65,7 @@
         {
             return (T)container.Resolve(typeof(T));
         }
-        
+
         public static T Resolve<T>(this IQuickInjectContainer container, object resolutionContext)
         {
             return (T)container.Resolve(typeof(T), resolutionContext);

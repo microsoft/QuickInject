@@ -1,10 +1,10 @@
 ﻿// Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-namespace Microsoft.QuickInject
+namespace System.Runtime.CompilerServices
 {
-    public interface IRequiresRecovery
+    [AttributeUsage(AttributeTargets.Method)]
+    internal class CompilerIntrinsicAttribute : Attribute
     {
-        void Recover();
     }
 }

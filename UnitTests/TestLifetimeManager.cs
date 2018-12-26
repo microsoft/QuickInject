@@ -1,34 +1,32 @@
 ﻿// Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-namespace Microsoft.QuickInject
+namespace UnitTests
 {
-    using System.Runtime.CompilerServices;
+    using Microsoft.QuickInject;
 
-    public sealed class TransientLifetimeManager : LifetimeManager
+    internal sealed class TestLifetimeManager : LifetimeManager
     {
-        internal static TransientLifetimeManager Default { get; } = new TransientLifetimeManager();
+        private object instance;
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public override object GetValue()
         {
-            return null;
+            return this.instance;
         }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public override object GetValue(object resolutionContext)
         {
-            return this.GetValue();
+            return this.instance;
         }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public override void SetValue(object newValue)
         {
+            this.instance = newValue;
         }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public override void SetValue(object resolutionContext, object newValue)
         {
+            this.instance = newValue;
         }
 
         public override void RemoveValue()

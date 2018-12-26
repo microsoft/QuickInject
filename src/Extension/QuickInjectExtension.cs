@@ -1,4 +1,7 @@
-﻿namespace QuickInject
+﻿// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+
+namespace Microsoft.QuickInject
 {
     using System;
 
@@ -8,21 +11,15 @@
 
         private ExtensionContext context;
 
-        public IQuickInjectContainer Container
-        {
-            get { return this.container; }
-        }
+        public IQuickInjectContainer Container => this.container;
 
-        protected ExtensionContext Context
-        {
-            get { return this.context; }
-        }
+        protected ExtensionContext Context => this.context;
 
         internal void InitializeExtension(ExtensionContext extensionContext)
         {
             if (extensionContext == null)
             {
-                throw new ArgumentNullException("extensionContext");
+                throw new ArgumentNullException(nameof(extensionContext));
             }
 
             this.container = extensionContext.Container;

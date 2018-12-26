@@ -1,4 +1,7 @@
-﻿namespace QuickInject
+﻿// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+
+namespace Microsoft.QuickInject
 {
     using System;
     using System.Diagnostics.Tracing;
@@ -9,7 +12,7 @@
         [NonEvent]
         public void RegisterType(Type from, Type to, LifetimeManager lifetime)
         {
-            this.RegisterType(from.ToString(), to.ToString(), lifetime == null ? string.Empty : lifetime.GetType().ToString());
+            this.RegisterType(from.ToString(), to.ToString(), lifetime?.GetType().ToString() ?? string.Empty);
         }
 
         public void RegisterType(string from, string to, string lifetimeType)
