@@ -50,9 +50,9 @@ namespace Microsoft.QuickInject
 
         private static readonly MethodInfo CompileMethodInfo = typeof(QuickInjectContainer).GetMethod("Compile", BindingFlags.NonPublic | BindingFlags.Instance);
 
-        private static readonly MethodInfo GetValueMethodInfo = LifetimeManagerType.GetMethod("GetValue", new [] { ObjectType });
+        private static readonly MethodInfo GetValueMethodInfo = LifetimeManagerType.GetMethod("GetValue", new[] { ObjectType });
 
-        private static readonly MethodInfo SetValueMethodInfo = LifetimeManagerType.GetMethod("SetValue", new [] { ObjectType, ObjectType });
+        private static readonly MethodInfo SetValueMethodInfo = LifetimeManagerType.GetMethod("SetValue", new[] { ObjectType, ObjectType });
 
         private static readonly MethodInfo NonConstructableTypeMethodInfo = QuickInjectContainerType.GetMethod("ThrowNonConstructableType");
 
@@ -692,7 +692,7 @@ namespace Microsoft.QuickInject
                     {
                         if (topLevelCodeGen)
                         {
-                            dict = this.SetupExtendedProlog(ilGenerator, new [] { type });
+                            dict = this.SetupExtendedProlog(ilGenerator, new[] { type });
                         }
 
                         parameterized.GenerateCode(ilGenerator, dict);
