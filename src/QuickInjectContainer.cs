@@ -50,9 +50,9 @@ namespace Microsoft.QuickInject
 
         private static readonly MethodInfo CompileMethodInfo = typeof(QuickInjectContainer).GetMethod("Compile", BindingFlags.NonPublic | BindingFlags.Instance);
 
-        private static readonly MethodInfo GetValueMethodInfo = LifetimeManagerType.GetMethod("GetValue", new Type[] { ObjectType });
+        private static readonly MethodInfo GetValueMethodInfo = LifetimeManagerType.GetMethod("GetValue", new [] { ObjectType });
 
-        private static readonly MethodInfo SetValueMethodInfo = LifetimeManagerType.GetMethod("SetValue", new Type[] { ObjectType, ObjectType });
+        private static readonly MethodInfo SetValueMethodInfo = LifetimeManagerType.GetMethod("SetValue", new [] { ObjectType, ObjectType });
 
         private static readonly MethodInfo NonConstructableTypeMethodInfo = QuickInjectContainerType.GetMethod("ThrowNonConstructableType");
 
@@ -97,6 +97,8 @@ namespace Microsoft.QuickInject
         private List<DynamicMethod> dynamicMethods = new List<DynamicMethod>(); // only used to keep GC references to the build plans
 
         private IPropertySelectorPolicy propertySelectorPolicy;
+
+        private bool disposed = false;
 
         private ExtensionImpl extensionImpl;
 
@@ -347,6 +349,7 @@ namespace Microsoft.QuickInject
 
         public void Dispose()
         {
+            this.Dispose(true);
         }
 
         public IQuickInjectContainer AddExtension(QuickInjectExtension extension)
@@ -437,6 +440,20 @@ namespace Microsoft.QuickInject
             lock (this.compileLock)
             {
                 return this.GetMappingFor(incoming);
+            }
+        }
+
+        protected virtual void Dispose(bool disposing)
+        {
+            if (this.disposed)
+            {
+                return;
+            }
+
+            if (disposing)
+            {
+                Logger?.Dispose();
+                this.parentContainer?.Dispose();
             }
         }
 
@@ -671,12 +688,11 @@ namespace Microsoft.QuickInject
                 }
                 else
                 {
-                    var parameterized = factoryExpression as ParameterizedLambdaExpressionInjectionFactoryMethodCallExpression;
-                    if (parameterized != null)
+                    if (factoryExpression is ParameterizedLambdaExpressionInjectionFactoryMethodCallExpression parameterized)
                     {
                         if (topLevelCodeGen)
                         {
-                            dict = this.SetupExtendedProlog(ilGenerator, new Type[] { type });
+                            dict = this.SetupExtendedProlog(ilGenerator, new [] { type });
                         }
 
                         parameterized.GenerateCode(ilGenerator, dict);
@@ -811,7 +827,7 @@ namespace Microsoft.QuickInject
         private void InitializeContainer()
         {
             this.extensionImpl = new ExtensionImpl(this);
-            this.perfectHashProvider = new PerfectHashProvider(compileMethodPointer); // this instance is used by all containers of a heirarchy
+            this.perfectHashProvider = new PerfectHashProvider(compileMethodPointer); // this instance is used by all containers of a hierarchy
             this.perfectHashProvider.AddContainer(this);
             this.lifetimeIndexTable.Add(TransientLifetimeManager.Default, 0);
             this.RegisterInstance(IQuickInjectContainerType, this);
